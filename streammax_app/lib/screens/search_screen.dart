@@ -132,56 +132,68 @@ class _SearchScreenState extends State<SearchScreen> {
     final displayResults = _getFilteredResults();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: const Color(0xFF0A0C10),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF141414),
+        backgroundColor: const Color(0xFF0A0C10),
         elevation: 0,
-        title: TextField(
-          controller: _controller,
-          autofocus: false,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            hintText: 'Search (e.g. Money Heist in Hindi)...',
-            hintStyle: const TextStyle(color: Colors.grey),
-            border: InputBorder.none,
-            prefixIcon: const Icon(Icons.search, color: Color(0xFFE50914)),
-            suffixIcon: _controller.text.isNotEmpty
-                ? IconButton(
-                    icon: const Icon(Icons.clear, color: Colors.grey),
-                    onPressed: () {
-                      _controller.clear();
-                      setState(() => _results = []);
-                    },
-                  )
-                : null,
+        scrolledUnderElevation: 0,
+        titleSpacing: 14,
+        title: Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0xFF131720),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFF202634), width: 1),
           ),
-          onChanged: (val) {
-            setState(() {});
-            _onQueryChanged(val);
-          },
-          onSubmitted: _executeSearch,
+          child: TextField(
+            controller: _controller,
+            autofocus: false,
+            style: const TextStyle(color: Colors.white, fontSize: 13.5),
+            decoration: InputDecoration(
+              hintText: 'Search movies, series (e.g. Money Heist in Hindi)...',
+              hintStyle: const TextStyle(color: Color(0xFF7E8695), fontSize: 13),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFE50914), size: 20),
+              suffixIcon: _controller.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close_rounded, color: Color(0xFF9EA3AE), size: 18),
+                      onPressed: () {
+                        _controller.clear();
+                        setState(() => _results = []);
+                      },
+                    )
+                  : null,
+            ),
+            onChanged: (val) {
+              setState(() {});
+              _onQueryChanged(val);
+            },
+            onSubmitted: _executeSearch,
+          ),
         ),
       ),
       body: Column(
         children: [
           // Filter Chips Row (All, In Hindi / Dubbed, Movies, TV Series)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF141414),
-              border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06))),
+              color: const Color(0xFF0A0C10),
+              border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
             ),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  _buildFilterChip('All', Icons.apps),
+                  _buildFilterChip('All', Icons.apps_rounded),
                   const SizedBox(width: 8),
-                  _buildFilterChip('In Hindi', Icons.translate, isHindiTag: true),
+                  _buildFilterChip('In Hindi', Icons.translate_rounded, isHindiTag: true),
                   const SizedBox(width: 8),
                   _buildFilterChip('Movies', Icons.movie_outlined),
                   const SizedBox(width: 8),
-                  _buildFilterChip('TV Series', Icons.tv),
+                  _buildFilterChip('TV Series', Icons.tv_rounded),
                 ],
               ),
             ),
@@ -189,21 +201,35 @@ class _SearchScreenState extends State<SearchScreen> {
 
           // Quick Search Suggestions
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
               child: Row(
                 children: _quickSearches.map((term) {
                   return Padding(
                     padding: const EdgeInsets.only(right: 6.0),
-                    child: ActionChip(
-                      label: Text(
-                        term,
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    child: GestureDetector(
+                      onTap: () => _triggerQuickSearch(term),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131720),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF202634)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.trending_up_rounded, color: Color(0xFFE50914), size: 13),
+                            const SizedBox(width: 4),
+                            Text(
+                              term,
+                              style: const TextStyle(color: Color(0xFFC5CAD4), fontSize: 11, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
                       ),
-                      backgroundColor: const Color(0xFF1A1A1A),
-                      side: const BorderSide(color: Colors.white12),
-                      onPressed: () => _triggerQuickSearch(term),
                     ),
                   );
                 }).toList(),
@@ -214,37 +240,45 @@ class _SearchScreenState extends State<SearchScreen> {
           // Search Results Grid
           Expanded(
             child: _isSearching
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFFE50914)))
+                ? const Center(child: CircularProgressIndicator(color: Color(0xFFE50914), strokeWidth: 3))
                 : displayResults.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.movie_creation_outlined, size: 64, color: Colors.grey[700]),
-                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF131720),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.search_rounded, size: 48, color: Color(0xFF7E8695)),
+                            ),
+                            const SizedBox(height: 14),
                             Text(
                               _controller.text.isEmpty
                                   ? 'Type to search over 50,000+ movies & TV shows'
                                   : 'No results found for "${_controller.text}"',
-                              style: TextStyle(color: Colors.grey[500]),
+                              style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 13.5, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
                       )
                     : GridView.builder(
                         controller: _scrollController,
+                        physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.all(12),
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 3,
-                          childAspectRatio: 2 / 3,
-                          crossAxisSpacing: 10,
+                          childAspectRatio: 0.58,
+                          crossAxisSpacing: 8,
                           mainAxisSpacing: 10,
                         ),
                         itemCount: displayResults.length,
                         itemBuilder: (context, idx) {
                           final movie = displayResults[idx];
                           final isTv = movie.mediaType == 'tv';
-                          final showHindiTag = _isHindiFilter || movie.isHindi;
+                          final showHindiTag = _isHindiFilter || movie.isHindi || movie.isHindiDubbed;
 
                           return GestureDetector(
                             onTap: () {
@@ -253,13 +287,25 @@ class _SearchScreenState extends State<SearchScreen> {
                                 MaterialPageRoute(
                                   builder: (_) => MovieDetailScreen(
                                     movie: movie,
-                                    initialHindiAudio: _isHindiFilter || movie.isHindi,
+                                    initialHindiAudio: _isHindiFilter || movie.isHindi || movie.isHindiDubbed,
                                   ),
                                 ),
                               );
                             },
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF131720),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: const Color(0xFF202634), width: 1),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
@@ -267,21 +313,21 @@ class _SearchScreenState extends State<SearchScreen> {
                                     CachedNetworkImage(
                                       imageUrl: movie.posterUrl!,
                                       fit: BoxFit.cover,
-                                      placeholder: (_, _) => Container(color: const Color(0xFF1E1E1E)),
+                                      placeholder: (_, _) => Container(color: const Color(0xFF131720)),
                                       errorWidget: (_, _, _) => Container(
-                                        color: const Color(0xFF1E1E1E),
+                                        color: const Color(0xFF131720),
                                         child: Center(
                                           child: Text(
                                             movie.title,
                                             textAlign: TextAlign.center,
-                                            style: const TextStyle(fontSize: 10, color: Colors.white70),
+                                            style: const TextStyle(fontSize: 10, color: Color(0xFF9EA3AE)),
                                           ),
                                         ),
                                       ),
                                     )
                                   else
                                     Container(
-                                      color: const Color(0xFF1E1E1E),
+                                      color: const Color(0xFF131720),
                                       padding: const EdgeInsets.all(4),
                                       child: Center(
                                         child: Text(
@@ -293,13 +339,13 @@ class _SearchScreenState extends State<SearchScreen> {
                                     ),
                                   // Type badge (TV vs Movie)
                                   Positioned(
-                                    top: 4,
-                                    left: 4,
+                                    top: 5,
+                                    left: 5,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: isTv ? Colors.purple.withValues(alpha: 0.85) : Colors.red.withValues(alpha: 0.85),
-                                        borderRadius: BorderRadius.circular(3),
+                                        color: const Color(0xFFE50914),
+                                        borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
                                         isTv ? 'SERIES' : 'MOVIE',
@@ -311,44 +357,31 @@ class _SearchScreenState extends State<SearchScreen> {
                                       ),
                                     ),
                                   ),
-                                  // Hindi badge
-                                  if (showHindiTag)
-                                    Positioned(
-                                      top: 20,
-                                      left: 4,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFE50914),
-                                          borderRadius: BorderRadius.circular(3),
-                                        ),
-                                        child: const Text(
-                                          '🇮🇳 HINDI',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 7,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
                                   // Rating badge
                                   Positioned(
-                                    top: 4,
-                                    right: 4,
+                                    top: 5,
+                                    right: 5,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.8),
-                                        borderRadius: BorderRadius.circular(3),
+                                        color: Colors.black.withValues(alpha: 0.82),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: Colors.white12, width: 0.5),
                                       ),
-                                      child: Text(
-                                        '★ ${movie.rating.toStringAsFixed(1)}',
-                                        style: const TextStyle(
-                                          color: Colors.amber,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 10),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            movie.rating.toStringAsFixed(1),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -358,23 +391,60 @@ class _SearchScreenState extends State<SearchScreen> {
                                     left: 0,
                                     right: 0,
                                     child: Container(
-                                      padding: const EdgeInsets.all(6),
+                                      padding: const EdgeInsets.fromLTRB(6, 16, 6, 6),
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           begin: Alignment.topCenter,
                                           end: Alignment.bottomCenter,
-                                          colors: [Colors.transparent, Colors.black.withValues(alpha: 0.9)],
+                                          colors: [
+                                            Colors.transparent,
+                                            Colors.black.withValues(alpha: 0.75),
+                                            Colors.black.withValues(alpha: 0.98),
+                                          ],
                                         ),
                                       ),
-                                      child: Text(
-                                        movie.title,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          if (showHindiTag) ...[
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                              margin: const EdgeInsets.only(bottom: 2),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF00C853).withValues(alpha: 0.25),
+                                                borderRadius: BorderRadius.circular(3),
+                                                border: Border.all(color: const Color(0xFF00C853), width: 0.5),
+                                              ),
+                                              child: const Text(
+                                                '🎧 HINDI',
+                                                style: TextStyle(
+                                                  color: Color(0xFF00E676),
+                                                  fontSize: 7.5,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                          Text(
+                                            movie.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            movie.year.isNotEmpty ? movie.year : '2024',
+                                            style: const TextStyle(
+                                              color: Color(0xFF9EA3AE),
+                                              fontSize: 9,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
@@ -392,31 +462,43 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildFilterChip(String label, IconData icon, {bool isHindiTag = false}) {
     final isSelected = _selectedCategory == label;
-    return ChoiceChip(
-      avatar: Icon(
-        icon,
-        size: 14,
-        color: isSelected
-            ? Colors.white
-            : (isHindiTag ? const Color(0xFFE50914) : Colors.grey),
-      ),
-      label: Text(
-        isHindiTag ? '🇮🇳 In Hindi / Dubbed' : label,
-        style: TextStyle(
-          color: isSelected ? Colors.white : Colors.grey[300],
-          fontSize: 11,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return GestureDetector(
+      onTap: () => _selectCategory(label),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE50914) : const Color(0xFF131720),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFFE50914)
+                : (isHindiTag ? const Color(0xFF00C853).withValues(alpha: 0.5) : const Color(0xFF202634)),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: isSelected
+                  ? Colors.white
+                  : (isHindiTag ? const Color(0xFF00E676) : const Color(0xFF9EA3AE)),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              isHindiTag ? '🇮🇳 In Hindi' : label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF9EA3AE),
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
-      selected: isSelected,
-      selectedColor: const Color(0xFFE50914),
-      backgroundColor: const Color(0xFF1E1E1E),
-      side: BorderSide(
-        color: isSelected
-            ? const Color(0xFFE50914)
-            : (isHindiTag ? const Color(0xFFE50914).withValues(alpha: 0.4) : Colors.white12),
-      ),
-      onSelected: (_) => _selectCategory(label),
     );
   }
 }

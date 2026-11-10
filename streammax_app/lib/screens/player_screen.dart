@@ -180,23 +180,40 @@ class _PlayerScreenState extends State<PlayerScreen> {
               });
             }
             _injectAdBlocker();
-            // Force 100% volume and unmuted playback on any video elements in page
+            // Unmute media on first playback without overriding user volume adjustments
             _webController.runJavaScript('''
               try {
                 function unmuteMedia() {
                   var els = document.querySelectorAll('video, audio');
                   for (var i = 0; i < els.length; i++) {
-                    els[i].muted = false;
-                    els[i].volume = 1.0;
-                    els[i].defaultMuted = false;
+                    if (els[i].muted) {
+                      els[i].muted = false;
+                      els[i].defaultMuted = false;
+                    }
                   }
                 }
                 unmuteMedia();
-                setInterval(unmuteMedia, 1000);
-                window.addEventListener('click', unmuteMedia);
-                window.addEventListener('touchstart', unmuteMedia);
+                window.addEventListener('click', unmuteMedia, { once: true });
+                window.addEventListener('touchstart', unmuteMedia, { once: true });
               } catch(e) {}
             ''').catchError((_) {});
+
+            // Auto-detect NetMirror rate limit ("Too Many Requests" / "STOP Abuse") and switch to VidLink
+            _webController.runJavaScriptReturningResult('document.body.innerText').then((result) {
+              final text = result.toString().toLowerCase();
+              if (text.contains('stop abuse') || text.contains('too many requests')) {
+                if (mounted && _selectedServerIndex == 0 && _currentServers.length > 1) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('⚡ NetMirror is busy. Auto-switched to Server 2 (VidLink Pro)'),
+                      backgroundColor: Color(0xFFE50914),
+                      duration: Duration(seconds: 3),
+                    ),
+                  );
+                  _switchServer(1, auto: true);
+                }
+              }
+            }).catchError((_) {});
           },
           onWebResourceError: (WebResourceError error) {
             // CRITICAL FIX: Only handle fallback if MAIN frame failed during INITIAL load.
@@ -312,52 +329,126 @@ class _PlayerScreenState extends State<PlayerScreen> {
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-    #videoContainer { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-    video { width: 100%; height: 100%; max-height: 100vh; object-fit: contain; }
+    html, body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #videoContainer {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    /* Strictly enforce 16:9 aspect ratio container so Chromium never stretches the play button */
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+      outline: none;
+    }
+    /* Circular Netflix-Red Center Play Overlay */
+    #playOverlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: rgba(229, 9, 20, 0.95);
+      box-shadow: 0 4px 25px rgba(229, 9, 20, 0.6), 0 0 0 3px rgba(255, 255, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 50;
+      transition: transform 0.18s ease, opacity 0.22s ease;
+    }
+    #playOverlay:active {
+      transform: translate(-50%, -50%) scale(0.92);
+    }
+    #playOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
     .audio-pill {
       position: absolute; top: 14px; right: 14px;
-      background: rgba(229, 9, 20, 0.95);
-      color: white; border: 1px solid rgba(255,255,255,0.3);
-      padding: 7px 14px; border-radius: 20px;
-      font-size: 13px; font-weight: bold;
+      background: rgba(229, 9, 20, 0.92);
+      color: white; border: 1px solid rgba(255,255,255,0.25);
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: bold;
       display: flex; align-items: center; gap: 6px;
       cursor: pointer; z-index: 100;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
     }
     #audioModal {
       display: none; position: absolute; inset: 0;
-      background: rgba(0,0,0,0.85); z-index: 200;
+      background: rgba(10,12,16,0.92); z-index: 200;
       flex-direction: column; align-items: center; justify-content: center;
       padding: 20px;
     }
     #audioModal.active { display: flex; }
     .modal-box {
-      background: #181818; border: 1px solid #333;
-      border-radius: 14px; padding: 18px; max-width: 320px; width: 100%;
+      background: #131720; border: 1px solid #202634;
+      border-radius: 16px; padding: 18px; max-width: 330px; width: 100%;
       max-height: 75vh; overflow-y: auto;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
     }
-    .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
     .track-item {
-      padding: 10px 14px; border-radius: 8px; margin-bottom: 6px;
-      background: #242424; font-size: 14px; cursor: pointer;
+      padding: 11px 14px; border-radius: 10px; margin-bottom: 8px;
+      background: #1a1f2c; font-size: 13.5px; cursor: pointer;
       display: flex; justify-content: space-between; align-items: center;
+      border: 1px solid #202634;
     }
-    .track-item.selected { background: #e50914; font-weight: bold; }
+    .track-item.selected { background: rgba(229, 9, 20, 0.18); border-color: #e50914; font-weight: bold; }
     .toast {
-      position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
-      background: rgba(20,20,20,0.9); border: 1px solid #e50914; border-radius: 20px;
-      padding: 8px 18px; font-size: 13px; color: #fff; z-index: 300; display: none;
+      position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%);
+      background: rgba(19, 23, 32, 0.95); border: 1px solid #e50914; border-radius: 20px;
+      padding: 8px 18px; font-size: 12.5px; color: #fff; z-index: 300; display: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.6);
     }
   </style>
 </head>
 <body>
   <div id="videoContainer">
-    <video id="videoPlayer" controls autoplay playsinline controlsList="nodownload"></video>
+    <div class="video-wrapper">
+      <video id="videoPlayer" controls autoplay playsinline controlsList="nodownload"></video>
+      <div id="playOverlay" onclick="togglePlayPause()">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="white" style="margin-left: 3px;">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+    </div>
     <button class="audio-pill" onclick="openAudioModal()">
-      <span>🎧 Audio: <span id="currentAudioName">Original / Dual Audio</span></span>
+      <span>🎧 Audio: <span id="currentAudioName">Dual Audio</span></span>
     </button>
-    <button id="unmuteOverlay" style="display:none; position:absolute; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(229,9,20,0.95); color:white; border:none; padding:10px 22px; border-radius:24px; font-size:14px; font-weight:bold; cursor:pointer; z-index:150; box-shadow:0 4px 15px rgba(0,0,0,0.7);" onclick="unmuteAudio()">
+    <button id="unmuteOverlay" style="display:none; position:absolute; bottom:65px; left:50%; transform:translateX(-50%); background:rgba(229,9,20,0.95); color:white; border:none; padding:10px 22px; border-radius:24px; font-size:13px; font-weight:bold; cursor:pointer; z-index:150; box-shadow:0 4px 15px rgba(0,0,0,0.7);" onclick="unmuteAudio()">
       🔊 Tap to Unmute & Max Volume
     </button>
     <div id="toast" class="toast"></div>
@@ -365,7 +456,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       <div class="modal-box">
         <div class="modal-title">
           <span>Choose Audio Language</span>
-          <span style="cursor:pointer;font-size:20px;" onclick="closeAudioModal()">✕</span>
+          <span style="cursor:pointer;font-size:20px;color:#9ea3ae;" onclick="closeAudioModal()">✕</span>
         </div>
         <div id="trackList"></div>
       </div>
@@ -373,6 +464,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   </div>
   <script>
     var video = document.getElementById('videoPlayer');
+    var playOverlay = document.getElementById('playOverlay');
     var currentAudioLabel = document.getElementById('currentAudioName');
     var trackListEl = document.getElementById('trackList');
     var modalEl = document.getElementById('audioModal');
@@ -382,6 +474,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
     var preferHindi = $preferHindi;
     var hls = null;
 
+    function togglePlayPause() {
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+      unmuteAudio();
+    }
+
+    video.addEventListener('play', function() {
+      if (playOverlay) playOverlay.classList.add('hidden');
+    });
+    video.addEventListener('pause', function() {
+      if (playOverlay) playOverlay.classList.remove('hidden');
+    });
+
     function showToast(msg) {
       toastEl.innerText = msg;
       toastEl.style.display = 'block';
@@ -389,26 +497,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     function unmuteAudio() {
-      if (video) {
+      if (video && video.muted) {
         video.muted = false;
-        video.volume = 1.0;
         if (unmuteBtn) unmuteBtn.style.display = 'none';
-        showToast('🔊 Volume 100% Unmuted');
       }
     }
 
     video.muted = false;
-    video.volume = 1.0;
     video.defaultMuted = false;
 
     video.addEventListener('volumechange', function() {
       if (unmuteBtn) {
-        unmuteBtn.style.display = (video.muted || video.volume === 0) ? 'block' : 'none';
+        unmuteBtn.style.display = (video.muted) ? 'block' : 'none';
       }
     });
 
-    window.addEventListener('click', unmuteAudio);
-    window.addEventListener('touchstart', unmuteAudio);
+    window.addEventListener('click', unmuteAudio, { once: true });
+    window.addEventListener('touchstart', unmuteAudio, { once: true });
     document.addEventListener('DOMContentLoaded', unmuteAudio);
 
     video.addEventListener('loadedmetadata', function() {
@@ -599,21 +704,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
           }
         }, true);
 
-        // 3. Force 100% volume and unmute on all video elements
+        // 3. Unmute media on page load without overriding user volume adjustments
         var unmuteAllMedia = function() {
           try {
             var media = document.querySelectorAll('video, audio');
             for (var i = 0; i < media.length; i++) {
-              media[i].muted = false;
-              media[i].volume = 1.0;
-              media[i].defaultMuted = false;
+              if (media[i].muted) {
+                media[i].muted = false;
+                media[i].defaultMuted = false;
+              }
             }
           } catch(e) {}
         };
         unmuteAllMedia();
-        setInterval(unmuteAllMedia, 1500);
-        window.addEventListener('click', unmuteAllMedia);
-        window.addEventListener('touchstart', unmuteAllMedia);
+        window.addEventListener('click', unmuteAllMedia, { once: true });
+        window.addEventListener('touchstart', unmuteAllMedia, { once: true });
 
         // 4. Auto-detect and select Hindi audio track if available in HTML5 video element
         var trySelectHindiAudio = function() {
@@ -675,131 +780,140 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _showAudioLanguageDialog() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF131720),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B3244),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 Row(
                   children: [
-                    const Icon(Icons.volume_up, color: Color(0xFFE50914), size: 22),
+                    const Icon(Icons.multitrack_audio_rounded, color: Color(0xFFE50914), size: 22),
                     const SizedBox(width: 10),
                     const Text(
                       'Select Audio Language',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
+                      icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
-                const Divider(color: Colors.white12),
-                const SizedBox(height: 8),
+                const Divider(color: Color(0xFF202634), height: 16),
+                const SizedBox(height: 6),
 
                 // English Option
-                ListTile(
-                  leading: const Text('🇬🇧', style: TextStyle(fontSize: 24)),
-                  title: const Text('English (Original Audio)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Default original multi-channel audio', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  trailing: !_isHindiAudio
-                      ? const Icon(Icons.check_circle, color: Color(0xFFE50914))
-                      : null,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  tileColor: !_isHindiAudio ? const Color(0xFF2B2B2B) : Colors.transparent,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _changeAudioLanguage(false);
-                  },
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: !_isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF202634),
+                    ),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Text('🇬🇧', style: TextStyle(fontSize: 22)),
+                    title: const Text('English (Original Audio)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13.5)),
+                    subtitle: const Text('Default original multi-channel audio', style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11)),
+                    trailing: !_isHindiAudio
+                        ? const Icon(Icons.check_circle_rounded, color: Color(0xFFE50914), size: 20)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _changeAudioLanguage(false);
+                    },
+                  ),
                 ),
-                const SizedBox(height: 8),
 
                 // Hindi Option
-                ListTile(
-                  leading: const Text('🇮🇳', style: TextStyle(fontSize: 24)),
-                  title: Text(
-                    widget.movie.isHindi ? 'Hindi (Original Audio)' : 'Hindi Dubbed (Dual Audio)',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: _isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF202634),
+                    ),
                   ),
-                  subtitle: const Text('Official Netflix Hindi dubbed audio track', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  trailing: _isHindiAudio
-                      ? const Icon(Icons.check_circle, color: Color(0xFFE50914))
-                      : null,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  tileColor: _isHindiAudio ? const Color(0xFF2B2B2B) : Colors.transparent,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _changeAudioLanguage(true);
-                  },
+                  child: ListTile(
+                    dense: true,
+                    leading: const Text('🇮🇳', style: TextStyle(fontSize: 22)),
+                    title: Text(
+                      widget.movie.isHindi ? 'Hindi (Original Audio)' : 'Hindi Dubbed (Dual Audio)',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13.5),
+                    ),
+                    subtitle: const Text('Official Netflix Hindi dubbed audio track', style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11)),
+                    trailing: _isHindiAudio
+                        ? const Icon(Icons.check_circle_rounded, color: Color(0xFFE50914), size: 20)
+                        : null,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _changeAudioLanguage(true);
+                    },
+                  ),
                 ),
-                const SizedBox(height: 6),
 
                 // Spanish Option
-                ListTile(
-                  leading: const Text('🇪🇸', style: TextStyle(fontSize: 24)),
-                  title: const Text('Spanish (Original)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Original Spanish European track', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _webController.runJavaScript('if(window.selectAudioByLang) window.selectAudioByLang("spa");');
-                  },
-                ),
-                const SizedBox(height: 6),
-
-                // Tamil Option
-                ListTile(
-                  leading: const Text('🇮🇳', style: TextStyle(fontSize: 24)),
-                  title: const Text('Tamil (Dubbed)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Tamil regional dub', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _webController.runJavaScript('if(window.selectAudioByLang) window.selectAudioByLang("tam");');
-                  },
-                ),
-                const SizedBox(height: 6),
-
-                // Telugu Option
-                ListTile(
-                  leading: const Text('🇮🇳', style: TextStyle(fontSize: 24)),
-                  title: const Text('Telugu (Dubbed)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Telugu regional dub', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _webController.runJavaScript('if(window.selectAudioByLang) window.selectAudioByLang("tel");');
-                  },
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1A1F2C),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF202634)),
+                  ),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Text('🇪🇸', style: TextStyle(fontSize: 22)),
+                    title: const Text('Spanish (Original)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13.5)),
+                    subtitle: const Text('Original Spanish European track', style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11)),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _webController.runJavaScript('if(window.selectAudioByLang) window.selectAudioByLang("spa");');
+                    },
+                  ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.15),
+                    color: const Color(0xFF1A1F2C),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                    border: Border.all(color: const Color(0xFF2B3244)),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.amber, size: 18),
+                      Icon(Icons.tips_and_updates_outlined, color: Colors.amber, size: 16),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Player Tip: Inside the player, you can also tap ⚙️ (Settings) or 💬 (Audio Track) on the video bar to change language instantly.',
-                          style: TextStyle(color: Colors.amber, fontSize: 11),
+                          'Tip: On web mirrors, you can also tap ⚙️ Settings on the player bar to switch language.',
+                          style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11),
                         ),
                       ),
                     ],
@@ -816,95 +930,115 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _showServerSelectionSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
+      backgroundColor: const Color(0xFF131720),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B3244),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 Row(
                   children: [
-                    const Icon(Icons.dns, color: Color(0xFFE50914), size: 22),
+                    const Icon(Icons.dns_rounded, color: Color(0xFFE50914), size: 22),
                     const SizedBox(width: 10),
                     const Text(
                       'Choose Streaming Mirror',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
+                      icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
                 ),
-                const Divider(color: Colors.white12),
-                const SizedBox(height: 8),
+                const Divider(color: Color(0xFF202634), height: 16),
+                const SizedBox(height: 4),
                 ..._currentServers.asMap().entries.map((entry) {
                   final idx = entry.key;
                   final s = entry.value;
                   final isSelected = idx == _selectedServerIndex;
-                  return ListTile(
-                    leading: CircleAvatar(
-                      radius: 14,
-                      backgroundColor: isSelected ? const Color(0xFFE50914) : const Color(0xFF333333),
-                      child: Text(
-                        '${idx + 1}',
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.grey[300],
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected ? const Color(0xFFE50914) : const Color(0xFF202634),
+                      ),
+                    ),
+                    child: ListTile(
+                      dense: true,
+                      leading: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: isSelected ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                        child: Text(
+                          '${idx + 1}',
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : const Color(0xFF9EA3AE),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
-                    ),
-                    title: Text(
-                      s.name,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.grey[200],
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                        fontSize: 14,
+                      title: Text(
+                        s.name,
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : const Color(0xFFD0D4DC),
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          fontSize: 13,
+                        ),
                       ),
+                      subtitle: Text(
+                        'Quality: ${s.quality}',
+                        style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFFE50914), size: 18)
+                          : null,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _switchServer(idx);
+                      },
                     ),
-                    subtitle: Text(
-                      'Quality: ${s.quality}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 11),
-                    ),
-                    trailing: isSelected
-                        ? const Icon(Icons.check_circle, color: Color(0xFFE50914), size: 20)
-                        : null,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    tileColor: isSelected ? const Color(0xFF2A2A2A) : Colors.transparent,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _switchServer(idx);
-                    },
                   );
                 }),
-                const SizedBox(height: 12),
+                const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.12),
+                    color: const Color(0xFF1A1F2C),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                    border: Border.all(color: const Color(0xFF2B3244)),
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.tips_and_updates_outlined, color: Colors.amber, size: 18),
+                      Icon(Icons.tips_and_updates_outlined, color: Colors.amber, size: 16),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'If video buffers or language is not matching, try switching between Server 1, Server 2, or Server 3.',
-                          style: TextStyle(color: Colors.amber, fontSize: 11),
+                          'If video buffers or audio differs, switch between Mirror 1 (NetMirror) and Mirror 2 (VidLink Pro).',
+                          style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11),
                         ),
                       ),
                     ],
@@ -1024,87 +1158,71 @@ class _PlayerScreenState extends State<PlayerScreen> {
             appBar: isLandscape
                 ? null
                 : AppBar(
-                    backgroundColor: Colors.black,
+                    backgroundColor: const Color(0xFF0A0C10),
                     elevation: 0,
+                    scrolledUnderElevation: 0,
                     leading: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
                     ),
-                    title: Text(
-                      title,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    titleSpacing: 0,
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name.split(' (')[0] : 'Mirror 1'} • ${_isHindiAudio ? "Hindi Dubbed 🇮🇳" : "English Audio 🇬🇧"}',
+                          style: const TextStyle(
+                            color: Color(0xFF9EA3AE),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                     actions: [
-                      // Prominent Audio Selector Pill
-                      InkWell(
-                        onTap: _showAudioLanguageDialog,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.25) : const Color(0xFF222222),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: _isHindiAudio ? const Color(0xFFE50914) : Colors.white24),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.volume_up, color: _isHindiAudio ? const Color(0xFFE50914) : Colors.amber, size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                _isHindiAudio ? 'Hindi 🇮🇳' : 'English 🇬🇧',
-                                style: TextStyle(
-                                  color: _isHindiAudio ? Colors.white : Colors.grey[200],
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      // Prominent Server Selector Pill
-                      InkWell(
-                        onTap: _showServerSelectionSheet,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 10),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF222222),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.dns_outlined, color: Colors.white70, size: 14),
-                              const SizedBox(width: 4),
-                              Text(
-                                'S${_selectedServerIndex + 1}',
-                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                              ),
-                              const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 16),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      // Orientation Toggle (Landscape cinema vs Portrait)
+                      // Audio Language Icon
                       IconButton(
-                        icon: const Icon(Icons.screen_lock_landscape, color: Colors.white),
-                        tooltip: 'Landscape Cinema Mode',
+                        icon: Icon(
+                          Icons.multitrack_audio_rounded,
+                          color: _isHindiAudio ? const Color(0xFFE50914) : Colors.white,
+                          size: 22,
+                        ),
+                        tooltip: 'Audio Language',
+                        onPressed: _showAudioLanguageDialog,
+                      ),
+                      // Server Mirror Switcher Icon
+                      IconButton(
+                        icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
+                        tooltip: 'Switch Mirror',
+                        onPressed: _showServerSelectionSheet,
+                      ),
+                      // Cinema Mode (Rotate)
+                      IconButton(
+                        icon: const Icon(Icons.crop_rotate_rounded, color: Colors.white, size: 20),
+                        tooltip: 'Cinema Mode',
                         onPressed: _toggleOrientation,
                       ),
+                      // Reload
                       IconButton(
-                        icon: const Icon(Icons.refresh, color: Colors.white70),
+                        icon: const Icon(Icons.refresh_rounded, color: Color(0xFF9EA3AE), size: 20),
                         tooltip: 'Reload Stream',
                         onPressed: () => _webController.reload(),
                       ),
+                      const SizedBox(width: 4),
                     ],
                   ),
             body: Stack(
@@ -1127,7 +1245,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withValues(alpha: 0.8),
+                            Colors.black.withValues(alpha: 0.85),
                             Colors.transparent,
                           ],
                         ),
@@ -1137,23 +1255,39 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white),
+                              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                               onPressed: () => Navigator.pop(context),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    '${_currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name : 'Mirror 1'}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF9EA3AE),
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                               ),
                             ),
+                            const SizedBox(width: 12),
                             // Quick Audio Selector Button
                             InkWell(
                               onTap: _showAudioLanguageDialog,
@@ -1161,9 +1295,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: _isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.3) : Colors.black54,
+                                  color: _isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.3) : const Color(0xFF131720),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: _isHindiAudio ? const Color(0xFFE50914) : Colors.white24),
+                                  border: Border.all(color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF202634)),
                                 ),
                                 child: Row(
                                   children: [
@@ -1189,13 +1323,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: Colors.black54,
+                                  color: const Color(0xFF131720),
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.white24),
+                                  border: Border.all(color: const Color(0xFF202634)),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.dns_outlined, color: Colors.white70, size: 14),
+                                    const Icon(Icons.dns_rounded, color: Colors.white70, size: 14),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Mirror ${_selectedServerIndex + 1}',
@@ -1206,8 +1340,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 ),
                               ),
                             ),
+                            const SizedBox(width: 8),
                             IconButton(
-                              icon: const Icon(Icons.screen_lock_portrait, color: Colors.white),
+                              icon: const Icon(Icons.crop_rotate_rounded, color: Colors.white),
                               tooltip: 'Exit Landscape Cinema Mode',
                               onPressed: _toggleOrientation,
                             ),

@@ -27,6 +27,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   List<Episode> _episodes = [];
   bool _isLoadingEpisodes = false;
   late bool _isHindiAudio;
+  bool _isOverviewExpanded = false;
 
   @override
   void initState() {
@@ -157,17 +158,28 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       canPop: true,
       onPopInvokedWithResult: (didPop, _) {},
       child: Scaffold(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: const Color(0xFF0A0C10),
         body: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
           slivers: [
             // 1. Sliver App Bar with Backdrop Image & Back Button
             SliverAppBar(
               expandedHeight: 280,
               pinned: true,
-              backgroundColor: const Color(0xFF0F0F0F),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+              backgroundColor: const Color(0xFF0A0C10),
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                  onPressed: () => Navigator.pop(context),
+                ),
               ),
               flexibleSpace: FlexibleSpaceBar(
                 background: Stack(
@@ -177,18 +189,20 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       CachedNetworkImage(
                         imageUrl: _currentMovie.backdropUrl ?? _currentMovie.posterUrl!,
                         fit: BoxFit.cover,
-                        placeholder: (_, _) => Container(color: const Color(0xFF1A1A1A)),
-                        errorWidget: (_, _, _) => Container(color: const Color(0xFF1A1A1A)),
+                        placeholder: (_, _) => Container(color: const Color(0xFF131720)),
+                        errorWidget: (_, _, _) => Container(color: const Color(0xFF131720)),
                       ),
                     Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
+                          stops: const [0.0, 0.45, 0.8, 1.0],
                           colors: [
+                            Colors.black.withValues(alpha: 0.4),
                             Colors.transparent,
-                            Colors.black.withValues(alpha: 0.5),
-                            const Color(0xFF0F0F0F),
+                            Colors.black.withValues(alpha: 0.7),
+                            const Color(0xFF0A0C10),
                           ],
                         ),
                       ),
@@ -198,10 +212,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
               ),
             ),
 
-            // 2. Movie Information & Clean Action Buttons (NO CLUTTERED SERVERS)
+            // 2. Movie Information & Clean Action Buttons
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -212,92 +226,102 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
+                        height: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
 
                     // Meta Info Row (Rating, Year, HD Badge, Media Type)
                     Wrap(
                       spacing: 8,
                       runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
-                            color: Colors.amber,
-                            borderRadius: BorderRadius.circular(4),
+                            color: const Color(0xFFFFB800),
+                            borderRadius: BorderRadius.circular(5),
                           ),
-                          child: Text(
-                            '★ ${_currentMovie.rating.toStringAsFixed(1)}',
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, color: Colors.black, size: 13),
+                              const SizedBox(width: 2),
+                              Text(
+                                _currentMovie.rating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Text(
-                          _currentMovie.year,
-                          style: const TextStyle(color: Colors.grey, fontSize: 13),
+                          _currentMovie.year.isNotEmpty ? _currentMovie.year : '2024',
+                          style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 13, fontWeight: FontWeight.w500),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                           decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white30),
-                            borderRadius: BorderRadius.circular(4),
+                            color: const Color(0xFF131720),
+                            border: Border.all(color: const Color(0xFF202634)),
+                            borderRadius: BorderRadius.circular(5),
                           ),
                           child: Text(
-                            isTv ? 'TV SERIES' : '1080p HD',
-                            style: const TextStyle(color: Colors.white70, fontSize: 11),
+                            isTv ? 'TV SERIES' : '1080p FULL HD',
+                            style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5, fontWeight: FontWeight.bold),
                           ),
                         ),
                         if (_currentMovie.isUpcoming)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                             decoration: BoxDecoration(
                               color: Colors.orange.withValues(alpha: 0.2),
-                              border: Border.all(color: Colors.orange),
-                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: Colors.orange, width: 0.8),
+                              borderRadius: BorderRadius.circular(5),
                             ),
                             child: const Text(
-                              'Upcoming / In Theaters',
-                              style: TextStyle(color: Colors.orange, fontSize: 11),
+                              'In Theaters',
+                              style: TextStyle(color: Colors.orange, fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
                           )
                         else
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                             decoration: BoxDecoration(
-                              color: Colors.green.withValues(alpha: 0.2),
-                              border: Border.all(color: Colors.green),
-                              borderRadius: BorderRadius.circular(4),
+                              color: const Color(0xFF00C853).withValues(alpha: 0.18),
+                              border: Border.all(color: const Color(0xFF00C853), width: 0.8),
+                              borderRadius: BorderRadius.circular(5),
                             ),
                             child: const Text(
                               'Stream Ready',
-                              style: TextStyle(color: Colors.green, fontSize: 11),
+                              style: TextStyle(color: Color(0xFF00E676), fontSize: 10.5, fontWeight: FontWeight.bold),
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
                     // Audio Track / Language Selector
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF181818),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white12),
+                        color: const Color(0xFF131720),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFF202634)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.volume_up, color: Colors.amber, size: 18),
+                              Icon(Icons.multitrack_audio_rounded, color: Color(0xFFE50914), size: 18),
                               SizedBox(width: 8),
                               Text(
-                                'Select Audio Track:',
+                                'Audio Track Preference:',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -306,45 +330,66 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                           Row(
                             children: [
-                              ChoiceChip(
-                                label: const Text('🇬🇧 English', style: TextStyle(fontSize: 12)),
-                                selected: !_isHindiAudio,
-                                selectedColor: const Color(0xFFE50914),
-                                backgroundColor: const Color(0xFF262626),
-                                labelStyle: TextStyle(
-                                  color: !_isHindiAudio ? Colors.white : Colors.grey[400],
-                                  fontWeight: !_isHindiAudio ? FontWeight.bold : FontWeight.normal,
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _isHindiAudio = false),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF1B202B),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '🇬🇧 English Audio',
+                                        style: TextStyle(
+                                          color: !_isHindiAudio ? Colors.white : const Color(0xFF9EA3AE),
+                                          fontSize: 12,
+                                          fontWeight: !_isHindiAudio ? FontWeight.bold : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                onSelected: (val) {
-                                  if (val) setState(() => _isHindiAudio = false);
-                                },
                               ),
                               const SizedBox(width: 8),
-                              ChoiceChip(
-                                label: Text(
-                                  _currentMovie.isHindi ? '🇮🇳 Hindi (Original)' : '🇮🇳 Hindi Dubbed',
-                                  style: const TextStyle(fontSize: 12),
+                              Expanded(
+                                child: GestureDetector(
+                                  onTap: () => setState(() => _isHindiAudio = true),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF1B202B),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                      ),
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _currentMovie.isHindi ? '🇮🇳 Hindi Original' : '🇮🇳 Hindi Dubbed',
+                                        style: TextStyle(
+                                          color: _isHindiAudio ? Colors.white : const Color(0xFF9EA3AE),
+                                          fontSize: 12,
+                                          fontWeight: _isHindiAudio ? FontWeight.bold : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                selected: _isHindiAudio,
-                                selectedColor: const Color(0xFFE50914),
-                                backgroundColor: const Color(0xFF262626),
-                                labelStyle: TextStyle(
-                                  color: _isHindiAudio ? Colors.white : Colors.grey[400],
-                                  fontWeight: _isHindiAudio ? FontWeight.bold : FontWeight.normal,
-                                ),
-                                onSelected: (val) {
-                                  if (val) setState(() => _isHindiAudio = true);
-                                },
                               ),
                             ],
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 18),
 
                     // Primary CTA Buttons: [WATCH NOW] & [DOWNLOAD]
                     Row(
@@ -352,21 +397,24 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         Expanded(
                           flex: 3,
                           child: ElevatedButton.icon(
-                            icon: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
+                            icon: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
                             label: Text(
                               isTv ? 'WATCH S1 E1' : 'WATCH NOW',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                letterSpacing: 1.1,
+                                letterSpacing: 1.0,
+                                fontSize: 14,
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFFE50914),
+                              foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                               ),
+                              elevation: 4,
                             ),
                             onPressed: () => _launchPlayer(season: 1, episode: 1),
                           ),
@@ -380,18 +428,27 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                               final isDownloaded = downloads.any((d) => d.movie.id == _currentMovie.id && d.isCompleted);
                               return OutlinedButton.icon(
                                 icon: Icon(
-                                  isDownloaded ? Icons.check_circle : Icons.download,
-                                  color: isDownloaded ? Colors.greenAccent : Colors.white,
+                                  isDownloaded ? Icons.check_circle_rounded : Icons.file_download_outlined,
+                                  color: isDownloaded ? const Color(0xFF00E676) : Colors.white,
+                                  size: 20,
                                 ),
                                 label: Text(
-                                  isDownloaded ? 'Downloaded' : 'Download',
-                                  style: TextStyle(color: isDownloaded ? Colors.greenAccent : Colors.white),
+                                  isDownloaded ? 'Saved' : 'Download',
+                                  style: TextStyle(
+                                    color: isDownloaded ? const Color(0xFF00E676) : Colors.white,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 style: OutlinedButton.styleFrom(
-                                  side: BorderSide(color: isDownloaded ? Colors.green : Colors.white30),
+                                  side: BorderSide(
+                                    color: isDownloaded ? const Color(0xFF00C853) : const Color(0xFF2B3244),
+                                    width: 1.2,
+                                  ),
+                                  backgroundColor: const Color(0xFF131720),
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                 ),
                                 onPressed: () {
@@ -399,7 +456,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
                                         content: Text('Saved offline in "My Downloads" tab.'),
-                                        backgroundColor: Color(0xFF222222),
+                                        backgroundColor: Color(0xFF131720),
                                       ),
                                     );
                                   } else {
@@ -419,27 +476,44 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 22),
 
-                    // Overview Synopsis
+                    // Overview Synopsis with Read More / Read Less
                     const Text(
                       'STORYLINE',
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
-                        letterSpacing: 1.1,
+                        letterSpacing: 1.0,
                         fontSize: 13,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       _currentMovie.overview ?? 'No synopsis available for this title.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
-                        fontSize: 14,
+                      style: const TextStyle(
+                        color: Color(0xFFC5CAD4),
+                        fontSize: 13.5,
                         height: 1.5,
                       ),
+                      maxLines: _isOverviewExpanded ? 20 : 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    if ((_currentMovie.overview ?? '').length > 140)
+                      GestureDetector(
+                        onTap: () => setState(() => _isOverviewExpanded = !_isOverviewExpanded),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            _isOverviewExpanded ? 'Show Less' : 'Read More',
+                            style: const TextStyle(
+                              color: Color(0xFFE50914),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 24),
 
                     // 3. TV SERIES SEASONS & EPISODES SECTION
@@ -458,31 +532,40 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       // Horizontal Season Pills
                       if (_seasons.isNotEmpty)
                         SizedBox(
-                          height: 38,
+                          height: 40,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
                             itemCount: _seasons.length,
                             separatorBuilder: (_, _) => const SizedBox(width: 8),
                             itemBuilder: (context, idx) {
                               final s = _seasons[idx];
                               final isSelected = s.seasonNumber == _selectedSeasonNumber;
-                              return ChoiceChip(
-                                label: Text(
-                                  'Season ${s.seasonNumber}',
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.white : Colors.grey[400],
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() => _selectedSeasonNumber = s.seasonNumber);
+                                  _loadEpisodes(s.seasonNumber);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? const Color(0xFFE50914) : const Color(0xFF131720),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: isSelected ? const Color(0xFFE50914) : const Color(0xFF202634),
+                                    ),
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      'Season ${s.seasonNumber}',
+                                      style: TextStyle(
+                                        color: isSelected ? Colors.white : const Color(0xFF9EA3AE),
+                                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                selected: isSelected,
-                                selectedColor: const Color(0xFFE50914),
-                                backgroundColor: const Color(0xFF1E1E1E),
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() => _selectedSeasonNumber = s.seasonNumber);
-                                    _loadEpisodes(s.seasonNumber);
-                                  }
-                                },
                               );
                             },
                           ),
@@ -493,8 +576,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       if (_isLoadingEpisodes)
                         const Center(
                           child: Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: CircularProgressIndicator(color: Color(0xFFE50914)),
+                            padding: EdgeInsets.all(28.0),
+                            child: CircularProgressIndicator(color: Color(0xFFE50914), strokeWidth: 3),
                           ),
                         )
                       else if (_episodes.isEmpty)
@@ -502,7 +585,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           padding: EdgeInsets.all(16.0),
                           child: Text(
                             'Episodes will be loaded shortly...',
-                            style: TextStyle(color: Colors.grey),
+                            style: TextStyle(color: Color(0xFF7E8695)),
                           ),
                         )
                       else
@@ -510,47 +593,54 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: _episodes.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 12),
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
                           itemBuilder: (context, idx) {
                             final ep = _episodes[idx];
                             return InkWell(
                               onTap: () => _playEpisode(ep),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(10),
                               child: Container(
-                                padding: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF181818),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.white10),
+                                  color: const Color(0xFF131720),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF202634)),
                                 ),
                                 child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
                                     // Episode Thumbnail
                                     ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(8),
                                       child: Stack(
                                         alignment: Alignment.center,
                                         children: [
                                           SizedBox(
-                                            width: 100,
-                                            height: 60,
+                                            width: 104,
+                                            height: 64,
                                             child: ep.stillUrl != null
                                                 ? CachedNetworkImage(
                                                     imageUrl: ep.stillUrl!,
                                                     fit: BoxFit.cover,
-                                                    placeholder: (_, _) => Container(color: Colors.black26),
-                                                    errorWidget: (_, _, _) => Container(color: Colors.black26),
+                                                    placeholder: (_, _) => Container(color: const Color(0xFF1B202B)),
+                                                    errorWidget: (_, _, _) => Container(
+                                                      color: const Color(0xFF1B202B),
+                                                      child: const Icon(Icons.movie_rounded, color: Colors.white24),
+                                                    ),
                                                   )
                                                 : Container(
-                                                    color: Colors.black38,
-                                                    child: const Icon(Icons.movie, color: Colors.grey),
+                                                    color: const Color(0xFF1B202B),
+                                                    child: const Icon(Icons.movie_rounded, color: Colors.white24),
                                                   ),
                                           ),
-                                          const CircleAvatar(
-                                            radius: 14,
-                                            backgroundColor: Colors.black54,
-                                            child: Icon(Icons.play_arrow, color: Colors.white, size: 18),
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(alpha: 0.65),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white24, width: 0.8),
+                                            ),
+                                            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
                                           ),
                                         ],
                                       ),
@@ -566,7 +656,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                             '${ep.episodeNumber}. ${ep.name}',
                                             style: const TextStyle(
                                               color: Colors.white,
-                                              fontSize: 14,
+                                              fontSize: 13.5,
                                               fontWeight: FontWeight.bold,
                                             ),
                                             maxLines: 1,
@@ -574,9 +664,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            ep.overview.isNotEmpty ? ep.overview : 'No overview available.',
-                                            style: TextStyle(
-                                              color: Colors.grey[400],
+                                            ep.overview.isNotEmpty ? ep.overview : 'No description available.',
+                                            style: const TextStyle(
+                                              color: Color(0xFF9EA3AE),
                                               fontSize: 11,
                                               height: 1.3,
                                             ),
@@ -585,6 +675,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                           ),
                                         ],
                                       ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.play_circle_fill, color: Color(0xFFE50914), size: 30),
+                                      onPressed: () => _playEpisode(ep),
                                     ),
                                   ],
                                 ),

@@ -31,16 +31,17 @@ class StreamMaxApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF0F0F0F),
+        scaffoldBackgroundColor: const Color(0xFF0A0C10),
         primaryColor: const Color(0xFFE50914),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFFE50914),
           secondary: Color(0xFFE50914),
-          surface: Color(0xFF141414),
+          surface: Color(0xFF131720),
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF0F0F0F),
+          backgroundColor: Color(0xFF0A0C10),
           elevation: 0,
+          scrolledUnderElevation: 0,
         ),
         useMaterial3: true,
       ),
@@ -103,14 +104,15 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           children: _tabs,
         ),
         bottomNavigationBar: Container(
-          color: const Color(0xFF0F0F0F),
+          color: const Color(0xFF0A0C10),
           child: SafeArea(
             top: false,
             bottom: true,
             maintainBottomViewPadding: true,
             child: Container(
               decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 1)),
+                color: const Color(0xFF0F1218),
+                border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1)),
               ),
               child: Theme(
                 data: Theme.of(context).copyWith(
@@ -119,9 +121,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                 ),
                 child: BottomNavigationBar(
                   currentIndex: _currentIndex,
-                  backgroundColor: const Color(0xFF0F0F0F),
+                  backgroundColor: const Color(0xFF0F1218),
                   selectedItemColor: const Color(0xFFE50914),
-                  unselectedItemColor: Colors.grey,
+                  unselectedItemColor: const Color(0xFF7E8695),
                   type: BottomNavigationBarType.fixed,
                   elevation: 0,
                   selectedFontSize: 11,
@@ -137,7 +139,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                       ),
                       activeIcon: Padding(
                         padding: EdgeInsets.only(bottom: 2),
-                        child: Icon(Icons.home),
+                        child: Icon(Icons.home_filled),
                       ),
                       label: 'Home',
                     ),
@@ -155,11 +157,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                     BottomNavigationBarItem(
                       icon: Padding(
                         padding: EdgeInsets.only(bottom: 2),
-                        child: Icon(Icons.download_outlined),
+                        child: Icon(Icons.file_download_outlined),
                       ),
                       activeIcon: Padding(
                         padding: EdgeInsets.only(bottom: 2),
-                        child: Icon(Icons.download),
+                        child: Icon(Icons.file_download),
                       ),
                       label: 'Downloads',
                     ),
@@ -232,9 +234,9 @@ class RealDownloadsTab extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF181818),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
+                  color: const Color(0xFF131720),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF202634)),
                 ),
                 child: Row(
                   children: [
@@ -376,14 +378,15 @@ class ProfilePlaceholderTab extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(10),
+        color: const Color(0xFF131720),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF202634)),
       ),
       child: ListTile(
         leading: Icon(icon, color: const Color(0xFFE50914)),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        subtitle: Text(subtitle, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right, color: Color(0xFF7E8695)),
       ),
     );
   }

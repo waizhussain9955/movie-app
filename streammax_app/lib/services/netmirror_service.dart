@@ -79,15 +79,35 @@ class NetMirrorService {
 
       // 1. Clean title for search (e.g. remove year or extra text)
       final cleanTitle = title.split('(').first.split(':').first.trim();
-      final searchRes = await http.get(
-        Uri.parse('$api/newtv/search.php?s=${Uri.encodeComponent(cleanTitle)}'),
-        headers: _headers,
-      ).timeout(const Duration(seconds: 6));
 
-      if (searchRes.statusCode != 200) return null;
-      final searchData = json.decode(searchRes.body);
-      final results = searchData['searchResult'] as List? ?? [];
+      // Search across OTT providers:
+      // nf = Netflix, hb = HBO Max (Game of Thrones, House of the Dragon), amz = Prime Video, dnp = Disney+
+      final ottList = ['nf', 'hb', 'amz', 'dnp'];
+      List results = [];
+      String activeOtt = 'nf';
+
+      for (final ott in ottList) {
+        try {
+          final searchRes = await http.get(
+            Uri.parse('$api/newtv/search.php?s=${Uri.encodeComponent(cleanTitle)}'),
+            headers: {..._headers, 'Ott': ott},
+          ).timeout(const Duration(seconds: 4));
+
+          if (searchRes.statusCode == 200) {
+            final searchData = json.decode(searchRes.body);
+            final r = searchData['searchResult'] as List? ?? [];
+            if (r.isNotEmpty) {
+              results = r;
+              activeOtt = ott;
+              break;
+            }
+          }
+        } catch (_) {}
+      }
+
       if (results.isEmpty) return null;
+
+      final ottHeaders = {..._headers, 'Ott': activeOtt};
 
       // Find best title match
       Map<String, dynamic>? match;
@@ -105,7 +125,7 @@ class NetMirrorService {
       // 2. Fetch Post Details (seasons & episodes)
       final postRes = await http.get(
         Uri.parse('$api/newtv/post.php?id=$targetShowId'),
-        headers: {..._headers, 'Lastep': '', 'Usertoken': ''},
+        headers: {...ottHeaders, 'Lastep': '', 'Usertoken': ''},
       ).timeout(const Duration(seconds: 6));
 
       if (postRes.statusCode != 200) return null;
@@ -148,7 +168,7 @@ class NetMirrorService {
             if (seasonId != null) {
               final epRes = await http.get(
                 Uri.parse('$api/newtv/episodes.php?id=${Uri.encodeComponent(seasonId)}&page=1'),
-                headers: _headers,
+                headers: ottHeaders,
               ).timeout(const Duration(seconds: 8));
 
               if (epRes.statusCode == 200) {
@@ -176,7 +196,7 @@ class NetMirrorService {
       // 3. Resolve Player Stream URL
       final playerRes = await http.get(
         Uri.parse('$api/newtv/player.php?id=$targetEpisodeId'),
-        headers: {..._headers, 'Usertoken': ''},
+        headers: {...ottHeaders, 'Usertoken': ''},
       ).timeout(const Duration(seconds: 8));
 
       if (playerRes.statusCode != 200) return null;
@@ -187,7 +207,7 @@ class NetMirrorService {
       if (videoLink != null && videoLink.isNotEmpty) {
         final linkLower = videoLink.toLowerCase();
         // If NetMirror returned the anti-abuse/rate-limit banner video, reject it so the app falls back to working multi-audio servers
-        if (linkLower.contains('abuse') || linkLower.contains('ratelimit') || linkLower.contains('stop_abuse')) {
+        if (linkLower.contains('abuse') || linkLower.contains('ratelimit') || linkLower.contains('stop_abuse') || linkLower.contains('veed') || linkLower.contains('warning') || linkLower.contains('wait few minutes')) {
           debugPrint('⚠️ [NetMirror] Rate limited / abuse banner detected, falling back to clean embed server');
           return null;
         }

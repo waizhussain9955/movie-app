@@ -1,0 +1,107 @@
+Assets in APK (unzip -l assets/):
+     8254  1981-01-01 01:01   assets/dexopt/baseline.prof
+      697  1981-01-01 01:01   assets/dexopt/baseline.profm
+    68100  1981-01-01 01:01   assets/ad-viewer/omid-session-client-v1.js
+    43924  1981-01-01 01:01   assets/ad-viewer/omsdk-v1.js
+      450  1981-01-01 01:01   assets/builddatas.json
+    25224  1981-01-01 01:01   assets/mbridge_download_dialog_view.xml
+     2072  1981-01-01 01:01   assets/rv_binddatas.xml
+   102400  1981-01-01 01:01   assets/z/eee1.ext
+   102400  1981-01-01 01:01   assets/z/eee10.ext
+   102400  1981-01-01 01:01   assets/z/eee11.ext
+   102400  1981-01-01 01:01   assets/z/eee12.ext
+   102400  1981-01-01 01:01   assets/z/eee13.ext
+   102400  1981-01-01 01:01   assets/z/eee14.ext
+   102400  1981-01-01 01:01   assets/z/eee15.ext
+   102400  1981-01-01 01:01   assets/z/eee16.ext
+   102400  1981-01-01 01:01   assets/z/eee17.ext
+   102400  1981-01-01 01:01   assets/z/eee18.ext
+   102400  1981-01-01 01:01   assets/z/eee19.ext
+   102400  1981-01-01 01:01   assets/z/eee2.ext
+   102400  1981-01-01 01:01   assets/z/eee20.ext
+   102400  1981-01-01 01:01   assets/z/eee21.ext
+   102400  1981-01-01 01:01   assets/z/eee22.ext
+   102400  1981-01-01 01:01   assets/z/eee23.ext
+   102400  1981-01-01 01:01   assets/z/eee24.ext
+   102400  1981-01-01 01:01   assets/z/eee25.ext
+   102400  1981-01-01 01:01   assets/z/eee26.ext
+   102400  1981-01-01 01:01   assets/z/eee27.ext
+   102400  1981-01-01 01:01   assets/z/eee28.ext
+   102400  1981-01-01 01:01   assets/z/eee29.ext
+   102400  1981-01-01 01:01   assets/z/eee3.ext
+   102400  1981-01-01 01:01   assets/z/eee30.ext
+   102400  1981-01-01 01:01   assets/z/eee31.ext
+   102400  1981-01-01 01:01   assets/z/eee32.ext
+   102400  1981-01-01 01:01   assets/z/eee33.ext
+   102400  1981-01-01 01:01   assets/z/eee34.ext
+   102400  1981-01-01 01:01   assets/z/eee35.ext
+   102400  1981-01-01 01:01   assets/z/eee36.ext
+   102400  1981-01-01 01:01   assets/z/eee37.ext
+   102400  1981-01-01 01:01   assets/z/eee38.ext
+   102400  1981-01-01 01:01   assets/z/eee39.ext
+   102400  1981-01-01 01:01   assets/z/eee4.ext
+   102400  1981-01-01 01:01   assets/z/eee40.ext
+   102400  1981-01-01 01:01   assets/z/eee5.ext
+   102400  1981-01-01 01:01   assets/z/eee6.ext
+   102400  1981-01-01 01:01   assets/z/eee7.ext
+   102400  1981-01-01 01:01   assets/z/eee8.ext
+   102400  1981-01-01 01:01   assets/z/eee9.ext
+  1048576  1981-01-01 01:01   assets/z/em1.ext
+  1048576  1981-01-01 01:01   assets/z/em2.ext
+  1048576  1981-01-01 01:01   assets/z/em3.ext
+  1048576  1981-01-01 01:01   assets/z/em4.ext
+    10240  1981-01-01 01:01   assets/z/f1.ext
+    10240  1981-01-01 01:01   assets/z/f2.ext
+    10240  1981-01-01 01:01   assets/z/f3.ext
+    10240  1981-01-01 01:01   assets/z/f4.ext
+    10240  1981-01-01 01:01   assets/z/f5.ext
+    10240  1981-01-01 01:01   assets/z/f6.ext
+     1024  1981-01-01 01:01   assets/z/ggg1.ext
+     1024  1981-01-01 01:01   assets/z/ggg2.ext
+     1024  1981-01-01 01:01   assets/z/ggg3.ext
+     1024  1981-01-01 01:01   assets/z/ggg4.ext
+     1024  1981-01-01 01:01   assets/z/ggg5.ext
+     1024  1981-01-01 01:01   assets/z/ggg6.ext
+     1024  1981-01-01 01:01   assets/z/ggg7.ext
+
+Total asset entries: 64
+
+Top-level APK entries by dir:
+   1237 res
+    100 META-INF
+     64 assets
+     16 lib
+     10 src
+     10 google
+      7 kotlin
+      3 
+      2 okhttp3
+      1 transport-api.properties
+      1 resources.arsc
+      1 play-services-tasks.properties
+      1 play-services-stats.properties
+      1 play-services-measurement.properties
+      1 play-services-measurement-sdk.properties
+      1 play-services-measurement-sdk-api.properties
+      1 play-services-measurement-impl.properties
+      1 play-services-measurement-base.properties
+      1 play-services-measurement-api.properties
+      1 play-services-cronet.properties
+      1 play-services-basement.properties
+      1 play-services-base.properties
+      1 play-services-appset.properties
+      1 play-services-ads-identifier.properties
+      1 kotlin-tooling-metadata.json
+      1 firebase-measurement-connector.properties
+      1 firebase-encoders.properties
+      1 firebase-encoders-proto.properties
+      1 firebase-annotations.properties
+      1 firebase-analytics.properties
+      1 firebase-analytics-ktx.properties
+      1 client_analytics.proto
+      1 classes2.dex
+      1 classes.dex
+      1 Name
+      1 DebugProbesKt.bin
+      1 AndroidManifest.xml
+      1 ----

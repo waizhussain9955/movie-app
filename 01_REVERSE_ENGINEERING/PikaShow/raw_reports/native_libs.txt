@@ -1,0 +1,48 @@
+Native libraries per ABI (from APK lib/):
+
+    10096  1981-01-01 01:01   lib/arm64-v8a/libandroidx.graphics.path.so
+   867944  1981-01-01 01:01   lib/arm64-v8a/libapplovin-native-crash-reporter.so
+     7112  1981-01-01 01:01   lib/arm64-v8a/libdatastore_shared_counter.so
+  1062176  1981-01-01 01:01   lib/arm64-v8a/libpika.so
+     7252  1981-01-01 01:01   lib/armeabi-v7a/libandroidx.graphics.path.so
+   507424  1981-01-01 01:01   lib/armeabi-v7a/libapplovin-native-crash-reporter.so
+     4416  1981-01-01 01:01   lib/armeabi-v7a/libdatastore_shared_counter.so
+   635016  1981-01-01 01:01   lib/armeabi-v7a/libpika.so
+     9284  1981-01-01 01:01   lib/x86/libandroidx.graphics.path.so
+   868700  1981-01-01 01:01   lib/x86/libapplovin-native-crash-reporter.so
+     5148  1981-01-01 01:01   lib/x86/libdatastore_shared_counter.so
+  1084544  1981-01-01 01:01   lib/x86/libpika.so
+    10760  1981-01-01 01:01   lib/x86_64/libandroidx.graphics.path.so
+   900536  1981-01-01 01:01   lib/x86_64/libapplovin-native-crash-reporter.so
+     6224  1981-01-01 01:01   lib/x86_64/libdatastore_shared_counter.so
+  1131080  1981-01-01 01:01   lib/x86_64/libpika.so
+
+Per-ABI summary:
+      4 lib/arm64-v8a/
+      4 lib/armeabi-v7a/
+      4 lib/x86/
+      4 lib/x86_64/
+
+File sizes (arm64-v8a):
+    10096  1981-01-01 01:01   lib/arm64-v8a/libandroidx.graphics.path.so
+   867944  1981-01-01 01:01   lib/arm64-v8a/libapplovin-native-crash-reporter.so
+     7112  1981-01-01 01:01   lib/arm64-v8a/libdatastore_shared_counter.so
+  1062176  1981-01-01 01:01   lib/arm64-v8a/libpika.so
+
+File sizes (armeabi-v7a):
+     7252  1981-01-01 01:01   lib/armeabi-v7a/libandroidx.graphics.path.so
+   507424  1981-01-01 01:01   lib/armeabi-v7a/libapplovin-native-crash-reporter.so
+     4416  1981-01-01 01:01   lib/armeabi-v7a/libdatastore_shared_counter.so
+   635016  1981-01-01 01:01   lib/armeabi-v7a/libpika.so
+
+File sizes (x86):
+     9284  1981-01-01 01:01   lib/x86/libandroidx.graphics.path.so
+   868700  1981-01-01 01:01   lib/x86/libapplovin-native-crash-reporter.so
+     5148  1981-01-01 01:01   lib/x86/libdatastore_shared_counter.so
+  1084544  1981-01-01 01:01   lib/x86/libpika.so
+
+File sizes (x86_64):
+    10760  1981-01-01 01:01   lib/x86_64/libandroidx.graphics.path.so
+   900536  1981-01-01 01:01   lib/x86_64/libapplovin-native-crash-reporter.so
+     6224  1981-01-01 01:01   lib/x86_64/libdatastore_shared_counter.so
+  1131080  1981-01-01 01:01   lib/x86_64/libpika.so

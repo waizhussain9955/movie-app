@@ -1,0 +1,131 @@
+MANIFEST SUMMARY — Pikashow APK (apktool 2.11.0 decoded AndroidManifest.xml)
+Source APK: work/pikashow.apk (SHA256 372dc5af73e2299ed4a65c0567a3a2ecb3ce6c7ce850d06f4d3c29faf3a4e0a6)
+Decoded manifest: work/apktool_out/AndroidManifest.xml (copy: work/reports/apktool_AndroidManifest.xml)
+
+== Identity ==
+Package: com.offshore.pikachu
+VersionName: 10.8.2  (from apktool.yml versionInfo)
+VersionCode: 83  (from apktool.yml versionInfo)
+compileSdkVersion: 34 (Android 14), platformBuildVersionCode: 34
+minSdkVersion: 21 (Android 5.0 Lollipop)  |  targetSdkVersion: 34 (Android 14)  (from apktool.yml sdkInfo)
+
+== Application ==
+Application class: com.offshore.raichu.MyApplication
+Label: @string/app_name  (resolves to 'Pikashow' per strings)
+Icon: @drawable/ic_launcher_fire  Round icon: @mipmap/ic_launcher_round
+Theme: @style/Theme.Pikashow
+allowBackup: true  largeHeap: true  hardwareAccelerated: true
+usesCleartextTraffic: true  <-- HTTP cleartext allowed
+supportsRtl: true  appComponentFactory: androidx.core.app.CoreComponentFactory
+dataExtractionRules: @xml/data_extraction_rules  fullBackupContent: @xml/backup_rules
+
+== Permissions: 15 uses-permission + 1 declared custom permission ==
+  - android.permission.INTERNET
+  - android.permission.ACCESS_NETWORK_STATE
+  - android.permission.RECORD_AUDIO
+  - com.on.talk.PERMISSION_BIND_INTERACTION
+  - com.google.android.gms.permission.AD_ID
+  - android.permission.ACCESS_ADSERVICES_TOPICS
+  - android.permission.ACCESS_ADSERVICES_ATTRIBUTION
+  - com.applovin.array.apphub.permission.BIND_APPHUB_SERVICE
+  - android.permission.ACCESS_WIFI_STATE
+  - android.permission.WAKE_LOCK
+  - com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE
+  - android.permission.ACCESS_ADSERVICES_AD_ID
+  - android.permission.RECEIVE_BOOT_COMPLETED
+  - android.permission.FOREGROUND_SERVICE
+  - com.offshore.pikachu.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+  DECLARED: com.offshore.pikachu.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION (protectionLevel=signature)
+
+== Queries (package visibility intents) ==
+  - action: com.attribution.REFERRAL_PROVIDER
+  - action: com.applovin.am.intent.action.APPHUB_SERVICE
+  - action: android.support.customtabs.action.CustomTabsService
+  - action: android.intent.action.MAIN
+  - action: android.intent.action.VIEW
+
+== activity: 31 ==
+  - com.offshore.raichu.MainActivity  exported=true
+  - com.offshore.raichu.ui.WebViewActivity  exported=None
+  - com.unity3d.services.ads.adunit.AdUnitActivity  exported=false
+  - com.unity3d.services.ads.adunit.AdUnitTransparentActivity  exported=false
+  - com.unity3d.services.ads.adunit.AdUnitTransparentSoftwareActivity  exported=false
+  - com.unity3d.services.ads.adunit.AdUnitSoftwareActivity  exported=false
+  - com.unity3d.ads.adplayer.FullScreenWebViewDisplay  exported=false
+  - com.applovin.adview.AppLovinFullscreenActivity  exported=false
+  - com.applovin.sdk.AppLovinWebViewActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerDetailActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerMultiAdActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerAdUnitsListActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerAdUnitWaterfallsListActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerAdUnitDetailActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerCmpNetworksListActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerTcfConsentStatusesListActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerTcfInfoListActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerTcfStringActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerTestLiveNetworkActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerTestModeNetworkActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerUnifiedFlowActivity  exported=None
+  - com.applovin.mediation.MaxDebuggerWaterfallSegmentsActivity  exported=None
+  - com.applovin.creative.MaxCreativeDebuggerActivity  exported=None
+  - com.applovin.creative.MaxCreativeDebuggerDisplayedAdActivity  exported=None
+  - com.google.android.gms.common.api.GoogleApiActivity  exported=false
+  - com.vungle.ads.internal.ui.VungleActivity  exported=None
+  - com.mbridge.msdk.activity.MBCommonActivity  exported=false
+  - com.mbridge.msdk.out.LoadingActivity  exported=None
+  - com.mbridge.msdk.newreward.player.MBRewardVideoActivity  exported=None
+  - com.mbridge.msdk.reward.player.MBRewardVideoActivity  exported=None
+
+== activity-alias: 0 ==
+
+== service: 12 ==
+  - com.offshore.raichu.service.RequestService  exported=true
+  - com.google.firebase.components.ComponentDiscoveryService  exported=false
+  - com.applovin.impl.adview.activity.FullscreenAdService  exported=false
+  - com.google.android.gms.measurement.AppMeasurementService  exported=false
+  - com.google.android.gms.measurement.AppMeasurementJobService  exported=false
+  - com.google.firebase.sessions.SessionLifecycleService  exported=false
+  - androidx.work.impl.background.systemalarm.SystemAlarmService  exported=false
+  - androidx.work.impl.background.systemjob.SystemJobService  exported=true
+  - androidx.work.impl.foreground.SystemForegroundService  exported=false
+  - androidx.room.MultiInstanceInvalidationService  exported=false
+  - com.google.android.datatransport.runtime.backends.TransportBackendDiscovery  exported=false
+  - com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService  exported=false
+
+== receiver: 12 ==
+  - com.google.android.gms.measurement.AppMeasurementReceiver  exported=false
+  - androidx.work.impl.utils.ForceStopRunnable$BroadcastReceiver  exported=false
+  - androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryChargingProxy  exported=false
+  - androidx.work.impl.background.systemalarm.ConstraintProxy$BatteryNotLowProxy  exported=false
+  - androidx.work.impl.background.systemalarm.ConstraintProxy$StorageNotLowProxy  exported=false
+  - androidx.work.impl.background.systemalarm.ConstraintProxy$NetworkStateProxy  exported=false
+  - androidx.work.impl.background.systemalarm.RescheduleReceiver  exported=false
+  - androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver  exported=false
+  - androidx.work.impl.diagnostics.DiagnosticsReceiver  exported=true
+  - androidx.profileinstaller.ProfileInstallReceiver  exported=true
+  - com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver  exported=false
+  - com.mbridge.msdk.foundation.same.broadcast.NetWorkChangeReceiver  exported=true
+
+== provider: 4 ==
+  - androidx.startup.InitializationProvider  exported=false
+  - com.applovin.sdk.AppLovinInitProvider  exported=false
+  - com.google.firebase.provider.FirebaseInitProvider  exported=false
+  - com.vungle.ads.VungleProvider  exported=false
+
+MAIN LAUNCHER ACTIVITY: com.offshore.raichu.MainActivity
+
+== Exported components (android:exported=true) ==
+  - activity: com.offshore.raichu.MainActivity
+  - service: com.offshore.raichu.service.RequestService
+  - service: androidx.work.impl.background.systemjob.SystemJobService
+  - receiver: androidx.work.impl.diagnostics.DiagnosticsReceiver
+  - receiver: androidx.profileinstaller.ProfileInstallReceiver
+  - receiver: com.mbridge.msdk.foundation.same.broadcast.NetWorkChangeReceiver
+
+== Notes ==
+- Only 2 app-own activities: MainActivity (launcher) + WebViewActivity; the rest are ad-SDK activities (AppLovin MAX, Unity Ads, Vungle, Mintegral/mbridge).
+- Only 1 app-own service: com.offshore.raichu.service.RequestService (exported=true, action com.offshore.REQUEST_SERVICE).
+- No app-own receivers/providers declared; all receivers/providers are Firebase / WorkManager / AppLovin / Vungle / AndroidX Startup.
+- Ad SDKs visible in manifest: AppLovin MAX, Unity Ads, Vungle, Mintegral (mbridge), Firebase (Analytics/Crashlytics/Remote Config/Sessions), Google Play services measurement.
+- usesCleartextTraffic=true + RECORD_AUDIO permission are the notable security-relevant flags.

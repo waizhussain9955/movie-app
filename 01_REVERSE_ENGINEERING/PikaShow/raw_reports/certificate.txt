@@ -1,0 +1,21 @@
+Owner: C=US, O=Android, CN=Android Debug
+Issuer: C=US, O=Android, CN=Android Debug
+Serial number: 35d0ca3017725cd4
+Valid from: Fri May 23 06:22:25 UTC 2025 until: Tue Oct 08 06:22:25 UTC 2052
+Certificate fingerprints:
+	 SHA1: A2:F3:9A:9D:C1:12:87:9E:38:65:ED:1B:07:0F:CC:4C:26:4B:EA:D6
+	 SHA256: F6:14:BF:F7:BC:30:2B:71:25:C5:85:FD:FA:48:D5:DA:9E:24:B5:2F:40:83:99:3F:91:72:F6:7D:3D:C8:BE:6C
+Signature algorithm name: SHA256withRSA
+Subject Public Key Algorithm: 2048-bit RSA key
+Version: 3
+
+Extensions: 
+
+#1: ObjectId: 2.5.29.14 Criticality=false
+SubjectKeyIdentifier [
+KeyIdentifier [
+0000: 80 D8 5E 10 D1 35 6F 9E   42 9B 83 FD 04 43 AE 67  ..^..5o.B....C.g
+0010: F0 9F 61 6A                                        ..aj
+]
+]
+

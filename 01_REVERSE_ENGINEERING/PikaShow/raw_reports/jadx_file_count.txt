@@ -1,0 +1,8 @@
+jadx decompiled .java file count: 12659
+jadx classes processed (per jadx.log): 9474
+jadx errors at finish (per jadx.log): 44
+jadx_out total size: 108M
+jadx_out/sources size: 83M
+jadx_out/resources size: 26M
+App-own package com/offshore/raichu .java files: 46
+apktool smali files: 17357

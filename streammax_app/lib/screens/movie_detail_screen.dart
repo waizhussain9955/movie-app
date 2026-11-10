@@ -95,10 +95,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     final sNum = season ?? 1;
     final epNum = episode ?? 1;
 
-    // Show instant SnackBar while resolving NetMirror VIP Multi-Audio HLS Stream
+    // Show instant SnackBar while resolving Fast Streaming Mirrors
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('⚡ Connecting to NetMirror VIP Multi-Audio Server...'),
+        content: Text('⚡ Connecting to Fast Streaming Mirrors...'),
         duration: Duration(seconds: 1),
         backgroundColor: Color(0xFF1E1E1E),
       ),

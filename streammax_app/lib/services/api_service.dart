@@ -301,19 +301,19 @@ class ApiService {
             id: list.length + 1,
             name: 'Server ${list.length + 1} (VidLink Pro - Multi-Audio & Subtitles)',
             quality: '1080p HD',
-            url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914',
+            url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914&autoplay=true',
           ),
           StreamServer(
             id: list.length + 2,
-            name: 'Server ${list.length + 2} (VidSrc Pro - Multi-Language)',
+            name: 'Server ${list.length + 2} (Videasy VIP - Multi-Language)',
             quality: '1080p HD',
-            url: 'https://vidsrc.to/embed/tv/$id/$season/$episode',
+            url: 'https://player.videasy.net/tv/$id/$season/$episode',
           ),
           StreamServer(
             id: list.length + 3,
-            name: 'Server ${list.length + 3} (VidSrc SH VIP)',
+            name: 'Server ${list.length + 3} (VidSrc Pro - Multi-Language)',
             quality: '1080p HD',
-            url: 'https://vidsrc.sh/embed/tv?tmdb=$id&season=$season&episode=$episode',
+            url: 'https://vidsrc.to/embed/tv/$id/$season/$episode',
           ),
           StreamServer(
             id: list.length + 4,
@@ -323,15 +323,15 @@ class ApiService {
           ),
           StreamServer(
             id: list.length + 5,
-            name: 'Server ${list.length + 5} (2Embed Mirror)',
-            quality: '720p',
-            url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
+            name: 'Server ${list.length + 5} (VidSrc SH VIP)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.sh/embed/tv?tmdb=$id&season=$season&episode=$episode',
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (AutoEmbed Direct)',
-            quality: '1080p HD',
-            url: 'https://autoembed.me/tv/tmdb/$id-$season-$episode',
+            name: 'Server ${list.length + 6} (2Embed Mirror)',
+            quality: '720p',
+            url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
           ),
         ]);
         return list;
@@ -341,25 +341,25 @@ class ApiService {
           id: list.length + 1,
           name: 'Server ${list.length + 1} (VidLink Pro HLS)',
           quality: '1080p HD',
-          url: 'https://vidlink.pro/tv/$id/$season/$episode',
+          url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914&autoplay=true',
         ),
         StreamServer(
           id: list.length + 2,
-          name: 'Server ${list.length + 2} (VidSrc Stream)',
+          name: 'Server ${list.length + 2} (Videasy VIP)',
+          quality: '1080p HD',
+          url: 'https://player.videasy.net/tv/$id/$season/$episode',
+        ),
+        StreamServer(
+          id: list.length + 3,
+          name: 'Server ${list.length + 3} (VidSrc Stream)',
           quality: '1080p HD',
           url: 'https://vidsrc.to/embed/tv/$id/$season/$episode',
         ),
         StreamServer(
-          id: list.length + 3,
-          name: 'Server ${list.length + 3} (VidSrc SH VIP)',
+          id: list.length + 4,
+          name: 'Server ${list.length + 4} (VidSrc SH VIP)',
           quality: '1080p HD',
           url: 'https://vidsrc.sh/embed/tv?tmdb=$id&season=$season&episode=$episode',
-        ),
-        StreamServer(
-          id: list.length + 4,
-          name: 'Server ${list.length + 4} (2Embed Mirror)',
-          quality: '720p',
-          url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
         ),
         StreamServer(
           id: list.length + 5,
@@ -369,9 +369,9 @@ class ApiService {
         ),
         StreamServer(
           id: list.length + 6,
-          name: 'Server ${list.length + 6} (AutoEmbed Direct)',
-          quality: '1080p HD',
-          url: 'https://autoembed.me/tv/tmdb/$id-$season-$episode',
+          name: 'Server ${list.length + 6} (2Embed Mirror)',
+          quality: '720p',
+          url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
         ),
       ]);
       return list;
@@ -382,19 +382,19 @@ class ApiService {
             id: list.length + 1,
             name: 'Server ${list.length + 1} (VidLink Pro - Multi-Audio & Subtitles)',
             quality: '1080p HD',
-            url: 'https://vidlink.pro/movie/$id?primaryColor=e50914',
+            url: 'https://vidlink.pro/movie/$id?primaryColor=e50914&autoplay=true',
           ),
           StreamServer(
             id: list.length + 2,
-            name: 'Server ${list.length + 2} (VidSrc Pro - Multi-Language)',
+            name: 'Server ${list.length + 2} (Videasy VIP - Multi-Language)',
             quality: '1080p HD',
-            url: 'https://vidsrc.to/embed/movie/$id',
+            url: 'https://player.videasy.net/movie/$id',
           ),
           StreamServer(
             id: list.length + 3,
-            name: 'Server ${list.length + 3} (VidSrc SH VIP)',
+            name: 'Server ${list.length + 3} (VidSrc Pro - Multi-Language)',
             quality: '1080p HD',
-            url: 'https://vidsrc.sh/embed/movie?tmdb=$id',
+            url: 'https://vidsrc.to/embed/movie/$id',
           ),
           StreamServer(
             id: list.length + 4,
@@ -404,15 +404,15 @@ class ApiService {
           ),
           StreamServer(
             id: list.length + 5,
-            name: 'Server ${list.length + 5} (2Embed Mirror)',
-            quality: '720p',
-            url: 'https://www.2embed.cc/embed/$id',
+            name: 'Server ${list.length + 5} (VidSrc SH VIP)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.sh/embed/movie?tmdb=$id',
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (AutoEmbed Direct)',
-            quality: '1080p HD',
-            url: 'https://autoembed.me/movie/tmdb/$id',
+            name: 'Server ${list.length + 6} (2Embed Mirror)',
+            quality: '720p',
+            url: 'https://www.2embed.cc/embed/$id',
           ),
         ]);
         return list;
@@ -422,25 +422,25 @@ class ApiService {
           id: list.length + 1,
           name: 'Server ${list.length + 1} (VidLink Pro HLS)',
           quality: '1080p HD',
-          url: 'https://vidlink.pro/movie/$id',
+          url: 'https://vidlink.pro/movie/$id?primaryColor=e50914&autoplay=true',
         ),
         StreamServer(
           id: list.length + 2,
-          name: 'Server ${list.length + 2} (VidSrc Stream)',
+          name: 'Server ${list.length + 2} (Videasy VIP)',
+          quality: '1080p HD',
+          url: 'https://player.videasy.net/movie/$id',
+        ),
+        StreamServer(
+          id: list.length + 3,
+          name: 'Server ${list.length + 3} (VidSrc Stream)',
           quality: '1080p HD',
           url: 'https://vidsrc.to/embed/movie/$id',
         ),
         StreamServer(
-          id: list.length + 3,
-          name: 'Server ${list.length + 3} (VidSrc SH VIP)',
+          id: list.length + 4,
+          name: 'Server ${list.length + 4} (VidSrc SH VIP)',
           quality: '1080p HD',
           url: 'https://vidsrc.sh/embed/movie?tmdb=$id',
-        ),
-        StreamServer(
-          id: list.length + 4,
-          name: 'Server ${list.length + 4} (2Embed Mirror)',
-          quality: '720p',
-          url: 'https://www.2embed.cc/embed/$id',
         ),
         StreamServer(
           id: list.length + 5,
@@ -450,9 +450,9 @@ class ApiService {
         ),
         StreamServer(
           id: list.length + 6,
-          name: 'Server ${list.length + 6} (AutoEmbed Direct)',
-          quality: '1080p HD',
-          url: 'https://autoembed.me/movie/tmdb/$id',
+          name: 'Server ${list.length + 6} (2Embed Mirror)',
+          quality: '720p',
+          url: 'https://www.2embed.cc/embed/$id',
         ),
       ]);
       return list;

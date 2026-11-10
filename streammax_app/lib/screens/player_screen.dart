@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
 import '../services/netmirror_service.dart';
@@ -103,12 +104,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _initPlayer() {
-    _webController = WebViewController()
+    final controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(
         'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
       )
       ..setBackgroundColor(Colors.black);
+
+    if (Platform.isAndroid && controller.platform is AndroidWebViewController) {
+      final androidCtrl = controller.platform as AndroidWebViewController;
+      androidCtrl.setMediaPlaybackRequiresUserGesture(false);
+    }
+    _webController = controller;
 
     if (_isOfflineMode) {
       // Offline mode: Load local video HTML5 player
@@ -173,6 +180,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
               });
             }
             _injectAdBlocker();
+            // Force 100% volume and unmuted playback on any video elements in page
+            _webController.runJavaScript('''
+              try {
+                function unmuteMedia() {
+                  var els = document.querySelectorAll('video, audio');
+                  for (var i = 0; i < els.length; i++) {
+                    els[i].muted = false;
+                    els[i].volume = 1.0;
+                    els[i].defaultMuted = false;
+                  }
+                }
+                unmuteMedia();
+                setInterval(unmuteMedia, 1000);
+                window.addEventListener('click', unmuteMedia);
+                window.addEventListener('touchstart', unmuteMedia);
+              } catch(e) {}
+            ''').catchError((_) {});
           },
           onWebResourceError: (WebResourceError error) {
             // CRITICAL FIX: Only handle fallback if MAIN frame failed during INITIAL load.
@@ -213,11 +237,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
               'vidsrc.to',
               'vidsrc.sh',
               'vidsrc.me',
+              'vidsrc.xyz',
+              'vidsrc.icu',
+              'vidsrc.cc',
+              'videasy.net',
               'autoembed.me',
               'autoembed.co',
               '2embed.cc',
               'smashystream.com',
               'anyembed.xyz',
+              'cinesrc.st',
+              'superembed.stream',
+              'embed.su',
               'vidcloud',
               'megacloud',
               'rabbitstream',
@@ -324,7 +355,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   <div id="videoContainer">
     <video id="videoPlayer" controls autoplay playsinline controlsList="nodownload"></video>
     <button class="audio-pill" onclick="openAudioModal()">
-      <span>🎧 Audio: <span id="currentAudioName">Detecting...</span></span>
+      <span>🎧 Audio: <span id="currentAudioName">Original / Dual Audio</span></span>
+    </button>
+    <button id="unmuteOverlay" style="display:none; position:absolute; bottom:80px; left:50%; transform:translateX(-50%); background:rgba(229,9,20,0.95); color:white; border:none; padding:10px 22px; border-radius:24px; font-size:14px; font-weight:bold; cursor:pointer; z-index:150; box-shadow:0 4px 15px rgba(0,0,0,0.7);" onclick="unmuteAudio()">
+      🔊 Tap to Unmute & Max Volume
     </button>
     <div id="toast" class="toast"></div>
     <div id="audioModal">
@@ -343,6 +377,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     var trackListEl = document.getElementById('trackList');
     var modalEl = document.getElementById('audioModal');
     var toastEl = document.getElementById('toast');
+    var unmuteBtn = document.getElementById('unmuteOverlay');
     var m3u8Url = '$m3u8Url';
     var preferHindi = $preferHindi;
     var hls = null;
@@ -352,6 +387,35 @@ class _PlayerScreenState extends State<PlayerScreen> {
       toastEl.style.display = 'block';
       setTimeout(function() { toastEl.style.display = 'none'; }, 3000);
     }
+
+    function unmuteAudio() {
+      if (video) {
+        video.muted = false;
+        video.volume = 1.0;
+        if (unmuteBtn) unmuteBtn.style.display = 'none';
+        showToast('🔊 Volume 100% Unmuted');
+      }
+    }
+
+    video.muted = false;
+    video.volume = 1.0;
+    video.defaultMuted = false;
+
+    video.addEventListener('volumechange', function() {
+      if (unmuteBtn) {
+        unmuteBtn.style.display = (video.muted || video.volume === 0) ? 'block' : 'none';
+      }
+    });
+
+    window.addEventListener('click', unmuteAudio);
+    window.addEventListener('touchstart', unmuteAudio);
+    document.addEventListener('DOMContentLoaded', unmuteAudio);
+
+    video.addEventListener('loadedmetadata', function() {
+      if (!hls || !hls.audioTracks || hls.audioTracks.length === 0) {
+        currentAudioLabel.innerText = preferHindi ? 'Hindi / Original' : 'Standard Audio';
+      }
+    });
 
     function openAudioModal() {
       renderTrackList();
@@ -450,7 +514,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       hls.on(Hls.Events.MANIFEST_PARSED, function() {
         var tracks = hls.audioTracks || [];
         var switched = false;
-        if (preferHindi) {
+        if (preferHindi && tracks.length > 0) {
           for (var i = 0; i < tracks.length; i++) {
             var t = tracks[i];
             var lang = (t.lang || '').toLowerCase();
@@ -462,12 +526,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
             }
           }
         }
-        if (!switched && tracks.length > 0) {
-          currentAudioLabel.innerText = tracks[hls.audioTrack >= 0 ? hls.audioTrack : 0].name || 'Audio Track';
+        if (!switched) {
+          if (tracks.length > 0) {
+            currentAudioLabel.innerText = tracks[hls.audioTrack >= 0 ? hls.audioTrack : 0].name || 'Audio Track';
+          } else {
+            currentAudioLabel.innerText = preferHindi ? 'Hindi / Original' : 'Standard Audio';
+          }
         }
-        video.play().catch(function(e) {
-          console.log("Autoplay touch required:", e);
-        });
+        video.muted = false;
+        video.volume = 1.0;
+        var playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.then(function() {
+            video.muted = false;
+            video.volume = 1.0;
+            if (unmuteBtn) unmuteBtn.style.display = 'none';
+          }).catch(function(e) {
+            console.log("Autoplay unmuted blocked by browser, trying muted autoplay with unmute banner:", e);
+            video.muted = true;
+            video.play().then(function() {
+              if (unmuteBtn) unmuteBtn.style.display = 'block';
+            }).catch(function(){});
+          });
+        }
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = m3u8Url;
@@ -475,6 +556,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     video.addEventListener('click', function() {
+      unmuteAudio();
       if (video.paused) {
         video.play().catch(function(){});
       }
@@ -505,6 +587,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (href.startsWith('http') && 
                 !href.includes('vidlink') && 
                 !href.includes('vidsrc') && 
+                !href.includes('videasy') && 
                 !href.includes('2embed') && 
                 !href.includes('autoembed') && 
                 !href.includes('smashy')) {
@@ -515,6 +598,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
             }
           }
         }, true);
+
+        // 3. Force 100% volume and unmute on all video elements
+        var unmuteAllMedia = function() {
+          try {
+            var media = document.querySelectorAll('video, audio');
+            for (var i = 0; i < media.length; i++) {
+              media[i].muted = false;
+              media[i].volume = 1.0;
+              media[i].defaultMuted = false;
+            }
+          } catch(e) {}
+        };
+        unmuteAllMedia();
+        setInterval(unmuteAllMedia, 1500);
+        window.addEventListener('click', unmuteAllMedia);
+        window.addEventListener('touchstart', unmuteAllMedia);
 
         // 4. Auto-detect and select Hindi audio track if available in HTML5 video element
         var trySelectHindiAudio = function() {
@@ -886,7 +985,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           content: Text(isHindi
               ? (_netMirrorStreamUrl != null
                   ? '🇮🇳 Hindi Dual Audio stream loaded'
-                  : '🇮🇳 Hindi audio is title ke liye nahi mila — embed player me audio option khud select karo')
+                  : '🇮🇳 Hindi mode active! VidLink Pro / Videasy me player ⚙️ settings se audio check karein')
               : '🇬🇧 Switched to English Original Audio'),
           backgroundColor: const Color(0xFFE50914),
           duration: const Duration(seconds: 3),

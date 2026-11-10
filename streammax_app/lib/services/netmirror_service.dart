@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 class NetMirrorService {
   static String? _resolvedApiUrl;
   static DateTime? _apiResolvedAt;
+  static final Map<String, String> _streamCache = {};
 
   static const List<String> _discoveryDomains = [
     'https://mobiledetects.com',
@@ -65,6 +66,13 @@ class NetMirrorService {
     int season = 1,
     int episode = 1,
   }) async {
+    final cacheKey = '${title.trim().toLowerCase()}_${isTv}_${season}_$episode';
+    if (_streamCache.containsKey(cacheKey)) {
+      final cached = _streamCache[cacheKey]!;
+      debugPrint('⚡ [NetMirror] Cache hit for $cacheKey: $cached');
+      return cached;
+    }
+
     try {
       final api = await getApiUrl();
       if (api == null) return null;
@@ -177,7 +185,14 @@ class NetMirrorService {
       final referer = playerData['referer']?.toString() ?? 'https://net52.cc';
 
       if (videoLink != null && videoLink.isNotEmpty) {
+        final linkLower = videoLink.toLowerCase();
+        // If NetMirror returned the anti-abuse/rate-limit banner video, reject it so the app falls back to working multi-audio servers
+        if (linkLower.contains('abuse') || linkLower.contains('ratelimit') || linkLower.contains('stop_abuse')) {
+          debugPrint('⚠️ [NetMirror] Rate limited / abuse banner detected, falling back to clean embed server');
+          return null;
+        }
         final fullStream = '$videoLink#referer=$referer';
+        _streamCache[cacheKey] = fullStream;
         debugPrint('🎯 [NetMirror] Found HLS stream: $fullStream');
         return fullStream;
       }

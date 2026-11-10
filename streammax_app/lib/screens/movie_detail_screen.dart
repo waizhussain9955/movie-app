@@ -50,7 +50,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           // from the home row is lost here — read it from widget.movie.
           if (_currentMovie.isHindi ||
               widget.initialHindiAudio ||
-              widget.movie.isHindiDubbed) _isHindiAudio = true;
+              widget.movie.isHindiDubbed) {
+            _isHindiAudio = true;
+          }
           _seasons = tvData['seasons'] as List<Season>;
           if (_seasons.isNotEmpty) {
             _selectedSeasonNumber = _seasons.first.seasonNumber;
@@ -69,7 +71,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
           // tag from the home row is lost here — read it from widget.movie.
           if (full.isHindi ||
               widget.initialHindiAudio ||
-              widget.movie.isHindiDubbed) _isHindiAudio = true;
+              widget.movie.isHindiDubbed) {
+            _isHindiAudio = true;
+          }
         });
       }
     }

@@ -123,14 +123,25 @@ class NetMirrorService {
         // If not found in page 1, fetch season-specific episodes
         if (targetEpisodeId == null && postData['season'] is List) {
           final seasons = (postData['season'] as List).cast<Map<String, dynamic>>();
-          if (season - 1 < seasons.length) {
-            final seasonObj = seasons[season - 1];
+          Map<String, dynamic>? seasonObj;
+          for (final s in seasons) {
+            final sLabel = (s['s'] ?? '').toString().toLowerCase();
+            if (sLabel.contains('season $season') || sLabel.contains('s$season')) {
+              seasonObj = s;
+              break;
+            }
+          }
+          seasonObj ??= (season - 1 >= 0 && season - 1 < seasons.length)
+              ? seasons[season - 1]
+              : (seasons.isNotEmpty ? seasons.first : null);
+
+          if (seasonObj != null) {
             final seasonId = seasonObj['id']?.toString();
             if (seasonId != null) {
               final epRes = await http.get(
                 Uri.parse('$api/newtv/episodes.php?id=${Uri.encodeComponent(seasonId)}&page=1'),
                 headers: _headers,
-              ).timeout(const Duration(seconds: 6));
+              ).timeout(const Duration(seconds: 8));
 
               if (epRes.statusCode == 200) {
                 final epData = json.decode(epRes.body);
@@ -158,15 +169,17 @@ class NetMirrorService {
       final playerRes = await http.get(
         Uri.parse('$api/newtv/player.php?id=$targetEpisodeId'),
         headers: {..._headers, 'Usertoken': ''},
-      ).timeout(const Duration(seconds: 6));
+      ).timeout(const Duration(seconds: 8));
 
       if (playerRes.statusCode != 200) return null;
       final playerData = json.decode(playerRes.body);
       final videoLink = playerData['video_link']?.toString();
+      final referer = playerData['referer']?.toString() ?? 'https://net52.cc';
 
       if (videoLink != null && videoLink.isNotEmpty) {
-        debugPrint('🎯 [NetMirror] Found HLS stream: $videoLink');
-        return videoLink;
+        final fullStream = '$videoLink#referer=$referer';
+        debugPrint('🎯 [NetMirror] Found HLS stream: $fullStream');
+        return fullStream;
       }
     } catch (e) {
       debugPrint('⚠️ [NetMirror] Stream resolution error: $e');

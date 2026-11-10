@@ -226,6 +226,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
               'mp4',
               'blob:',
               'about:blank',
+              'net52.cc',
+              'net77.cc',
+              'netmirror',
+              'imgcdn.kim',
+              'freecdn4.top',
+              'freecdn51.top',
+              'freecdn',
+              'subscdn.top',
+              'jsdelivr.net',
             ];
 
             final isAllowed = allowedHosts.any((host) => url.contains(host));
@@ -244,19 +253,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   void _loadActiveStream(String url) {
     if (url.contains('.m3u8')) {
-      _webController.loadHtmlString(_buildHlsPlayerHtml(url));
+      String streamUrl = url;
+      String referer = 'https://net52.cc/';
+      if (url.contains('#referer=')) {
+        final parts = url.split('#referer=');
+        streamUrl = parts[0];
+        referer = parts[1];
+        if (!referer.endsWith('/')) referer = '$referer/';
+      }
+      _webController.loadHtmlString(
+        _buildHlsPlayerHtml(streamUrl, referer: referer),
+        baseUrl: referer,
+      );
     } else {
       _webController.loadRequest(Uri.parse(url));
     }
   }
 
-  String _buildHlsPlayerHtml(String m3u8Url) {
+  String _buildHlsPlayerHtml(String m3u8Url, {String referer = 'https://net52.cc/'}) {
     final preferHindi = _isHindiAudio ? 'true' : 'false';
     return '''
 <!DOCTYPE html>
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="always">
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -399,9 +420,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
     };
 
     if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true });
+      hls = new Hls({
+        enableWorker: true,
+        xhrSetup: function(xhr, url) {
+          xhr.withCredentials = false;
+        }
+      });
       hls.loadSource(m3u8Url);
       hls.attachMedia(video);
+
+      hls.on(Hls.Events.ERROR, function(event, data) {
+        console.log("HLS Event Error:", data.type, data.details, data.fatal);
+        if (data.fatal) {
+          switch(data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log("Network error, attempting recovery...");
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log("Media error, attempting recovery...");
+              hls.recoverMediaError();
+              break;
+            default:
+              break;
+          }
+        }
+      });
+
       hls.on(Hls.Events.MANIFEST_PARSED, function() {
         var tracks = hls.audioTracks || [];
         var switched = false;
@@ -420,12 +465,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
         if (!switched && tracks.length > 0) {
           currentAudioLabel.innerText = tracks[hls.audioTrack >= 0 ? hls.audioTrack : 0].name || 'Audio Track';
         }
-        video.play().catch(function(){});
+        video.play().catch(function(e) {
+          console.log("Autoplay touch required:", e);
+        });
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = m3u8Url;
       video.play().catch(function(){});
     }
+
+    video.addEventListener('click', function() {
+      if (video.paused) {
+        video.play().catch(function(){});
+      }
+    });
   </script>
 </body>
 </html>

@@ -104,7 +104,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       ),
     );
 
-    // Resolve NetMirror HLS Stream with timeout of 4 seconds
+    // Resolve NetMirror HLS Stream with timeout of 8 seconds
     String? netmirrorUrl;
     try {
       netmirrorUrl = await NetMirrorService.resolveStream(
@@ -112,7 +112,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         isTv: isTv,
         season: sNum,
         episode: epNum,
-      ).timeout(const Duration(seconds: 4), onTimeout: () => null);
+      ).timeout(const Duration(seconds: 8), onTimeout: () => null);
     } catch (_) {}
 
     final servers = ApiService.generateServers(

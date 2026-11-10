@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
+import '../services/netmirror_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Movie movie;
@@ -39,13 +40,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _isLandscape = false;
   bool _isHindiAudio = false;
   int _fallbackAttempts = 0;
+  // The NetMirror HLS (.m3u8) URL is the ONLY server with a real dual-audio
+  // picker. Remember it so a language switch never drops it (the old code
+  // regenerated the server list without it).
+  String? _netMirrorStreamUrl;
 
   @override
   void initState() {
     super.initState();
     _selectedServerIndex = 0;
     _currentServers = List.from(widget.servers);
-    _isHindiAudio = widget.initialHindiAudio || widget.movie.isHindi;
+    _isHindiAudio = widget.initialHindiAudio ||
+        widget.movie.isHindi ||
+        widget.movie.isHindiDubbed;
+    // Find the NetMirror dual-audio HLS server (if the detail screen
+    // resolved one). In Hindi mode start on it — the embed servers all
+    // default to English audio.
+    for (var i = 0; i < _currentServers.length; i++) {
+      if (_currentServers[i].url.contains('.m3u8')) {
+        _netMirrorStreamUrl = _currentServers[i].url;
+        if (_isHindiAudio) _selectedServerIndex = i;
+        break;
+      }
+    }
     _isOfflineMode = widget.localFilePath != null && File(widget.localFilePath!).existsSync();
 
     // Enable device sensor rotation (Portrait & Landscape)
@@ -749,7 +766,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  void _changeAudioLanguage(bool isHindi) {
+  Future<void> _changeAudioLanguage(bool isHindi) async {
     if (_isHindiAudio == isHindi) return;
     setState(() => _isHindiAudio = isHindi);
 
@@ -769,7 +786,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return;
     }
 
-    // Case 2: Embed/iframe server — regenerate servers with Hindi audio flag
+    // Case 2: Embed/iframe server. The embed URLs are IDENTICAL for Hindi
+    // and English (only the labels change) — no embed provider takes an
+    // audio-language parameter — so toggling here used to do nothing real.
+    // The only true Hindi source is the NetMirror dual-audio HLS stream:
+    // resolve it on demand if we don't already have it.
+    if (isHindi && _netMirrorStreamUrl == null) {
+      setState(() => _isLoading = true);
+      try {
+        final resolved = await NetMirrorService.resolveStream(
+          widget.movie.title,
+          isTv: widget.movie.mediaType == 'tv',
+          season: widget.seasonNumber ?? 1,
+          episode: widget.episodeNumber ?? 1,
+        ).timeout(const Duration(seconds: 8), onTimeout: () => null);
+        if (resolved != null && resolved.isNotEmpty) {
+          _netMirrorStreamUrl = resolved;
+        }
+      } catch (_) {
+        // NetMirror unreachable — fall through to the embed servers below.
+      }
+    }
+
     setState(() {
       _isLoading = true;
       _hasLoadedSuccessfully = false;
@@ -779,21 +817,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
         season: widget.seasonNumber ?? 1,
         episode: widget.episodeNumber ?? 1,
         isHindiAudio: isHindi,
+        // Pass the NetMirror URL through, otherwise regenerating the list
+        // silently drops the only dual-audio server (old bug).
+        netMirrorStreamUrl: _netMirrorStreamUrl,
       );
+      // NetMirror is Server 1 when present — start on it for Hindi.
       _selectedServerIndex = 0;
     });
 
     _loadActiveStream(_currentServers.first.url);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isHindi
-            ? '🇮🇳 Hindi Dubbed mode ON — agar English chal rahi ho to Mirror 2 try karo'
-            : '🇬🇧 Switched to English Original Audio'),
-        backgroundColor: const Color(0xFFE50914),
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isHindi
+              ? (_netMirrorStreamUrl != null
+                  ? '🇮🇳 Hindi Dual Audio stream loaded'
+                  : '🇮🇳 Hindi audio is title ke liye nahi mila — embed player me audio option khud select karo')
+              : '🇬🇧 Switched to English Original Audio'),
+          backgroundColor: const Color(0xFFE50914),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
   }
 
   @override

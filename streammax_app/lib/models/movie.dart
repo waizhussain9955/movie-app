@@ -12,6 +12,11 @@ class Movie {
   final List<StreamServer> servers;
   final String? releaseDate;
   final String originalLanguage;
+  // True when this title comes from the "Hindi Dubbed" row: the movie itself
+  // is usually English-original (originalLanguage == 'en') but is meant to be
+  // played with the Hindi dubbed audio track. Do NOT confuse with isHindi,
+  // which only means Hindi-original (Bollywood).
+  final bool isHindiDubbed;
 
   Movie({
     required this.id,
@@ -27,6 +32,7 @@ class Movie {
     this.servers = const [],
     this.releaseDate,
     this.originalLanguage = 'en',
+    this.isHindiDubbed = false,
   });
 
   bool get isHindi => originalLanguage == 'hi';
@@ -80,6 +86,7 @@ class Movie {
       servers: parsedServers,
       releaseDate: json['release_date'] ?? json['first_air_date'],
       originalLanguage: json['original_language']?.toString() ?? 'en',
+      isHindiDubbed: json['isHindiDubbed'] ?? false,
     );
   }
 
@@ -96,6 +103,7 @@ class Movie {
     'runtime': runtime,
     'releaseDate': releaseDate,
     'originalLanguage': originalLanguage,
+    'isHindiDubbed': isHindiDubbed,
     'servers': servers.map((s) => s.toJson()).toList(),
   };
 }

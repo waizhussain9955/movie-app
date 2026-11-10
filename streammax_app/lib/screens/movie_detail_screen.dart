@@ -32,7 +32,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   void initState() {
     super.initState();
     _currentMovie = widget.movie;
-    _isHindiAudio = widget.initialHindiAudio || widget.movie.isHindi;
+    // Hindi Dubbed row titles are English-original, so isHindi alone is not
+    // enough: a title tagged isHindiDubbed must also open in Hindi mode.
+    _isHindiAudio = widget.initialHindiAudio ||
+        widget.movie.isHindi ||
+        widget.movie.isHindiDubbed;
     _fetchDetails();
   }
 
@@ -42,7 +46,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       if (mounted) {
         setState(() {
           _currentMovie = tvData['movie'] as Movie;
-          if (_currentMovie.isHindi || widget.initialHindiAudio) _isHindiAudio = true;
+          // NOTE: getTVDetails rebuilds the Movie, so the isHindiDubbed tag
+          // from the home row is lost here — read it from widget.movie.
+          if (_currentMovie.isHindi ||
+              widget.initialHindiAudio ||
+              widget.movie.isHindiDubbed) _isHindiAudio = true;
           _seasons = tvData['seasons'] as List<Season>;
           if (_seasons.isNotEmpty) {
             _selectedSeasonNumber = _seasons.first.seasonNumber;
@@ -57,7 +65,11 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       if (full != null && mounted) {
         setState(() {
           _currentMovie = full;
-          if (full.isHindi || widget.initialHindiAudio) _isHindiAudio = true;
+          // NOTE: getMovieDetails rebuilds the Movie, so the isHindiDubbed
+          // tag from the home row is lost here — read it from widget.movie.
+          if (full.isHindi ||
+              widget.initialHindiAudio ||
+              widget.movie.isHindiDubbed) _isHindiAudio = true;
         });
       }
     }

@@ -29,7 +29,7 @@ class ApiService {
         // 6: Hollywood Blockbusters (English language, high revenue)
         http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=revenue.desc')).timeout(const Duration(seconds: 7)),
         // 7: Hindi Dubbed Hollywood (Multi-Language filter)
-        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&with_spoken_languages=hi&sort_by=popularity.desc')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=popularity.desc')).timeout(const Duration(seconds: 7)),
         // 8: Popular Anime (Japanese animation, any media type)
         http.get(Uri.parse('$tmdbFallbackUrl/discover/tv?api_key=$tmdbApiKey&with_genres=16&with_original_language=ja&sort_by=popularity.desc')).timeout(const Duration(seconds: 7)),
       ]).catchError((_) => <http.Response>[]);
@@ -75,7 +75,7 @@ class ApiService {
       }
       if (futures.length > 7 && futures[7].statusCode == 200) {
         final d = json.decode(futures[7].body)['results'] as List? ?? [];
-        hindiDubbed = d.where((i) => i['poster_path'] != null).map((item) => _mapJsonToMovie(item, 'movie')).toList();
+        hindiDubbed = d.where((i) => i['poster_path'] != null).map((item) => _mapJsonToMovie(item, 'movie', isHindiDubbed: true)).toList();
       }
       if (futures.length > 8 && futures[8].statusCode == 200) {
         final d = json.decode(futures[8].body)['results'] as List? ?? [];
@@ -92,7 +92,7 @@ class ApiService {
           'topRated': topRated.isNotEmpty ? topRated : movies.reversed.take(10).toList(),
           'action': actionMovies.isNotEmpty ? actionMovies : movies.take(10).toList(),
           'hollywood': hollywood.isNotEmpty ? hollywood : movies.take(10).toList(),
-          'hindiDubbed': hindiDubbed.isNotEmpty ? hindiDubbed : bollywood.take(10).toList(),
+          'hindiDubbed': hindiDubbed.isNotEmpty ? hindiDubbed : hollywood.take(10).toList(),
           'anime': anime.isNotEmpty ? anime : tvShows.take(10).toList(),
         };
       }
@@ -249,7 +249,7 @@ class ApiService {
     return fallbackMatches;
   }
 
-  static Movie _mapJsonToMovie(Map<String, dynamic> json, String defaultType) {
+  static Movie _mapJsonToMovie(Map<String, dynamic> json, String defaultType, {bool isHindiDubbed = false}) {
     final type = json['media_type'] ?? defaultType;
     final isTv = type == 'tv';
     final id = json['id'] ?? 0;
@@ -265,6 +265,7 @@ class ApiService {
       mediaType: type,
       releaseDate: json['release_date'] ?? json['first_air_date'],
       originalLanguage: json['original_language'] ?? 'en',
+      isHindiDubbed: isHindiDubbed,
       servers: generateServers(id, isTv: isTv),
     );
   }

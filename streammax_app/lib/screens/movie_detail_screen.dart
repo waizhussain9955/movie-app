@@ -42,54 +42,62 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Future<void> _fetchDetails() async {
-    final isTvCandidate = _currentMovie.mediaType == 'tv';
-
-    if (isTvCandidate) {
+    // 1. If candidate is explicitly 'tv', load TV details
+    if (_currentMovie.mediaType == 'tv') {
       final tvData = await ApiService.getTVDetails(widget.movie.id);
-      if (mounted) {
-        final seasons = tvData['seasons'] as List<Season>? ?? [];
+      final seasons = tvData['seasons'] as List<Season>? ?? [];
+      if (seasons.isNotEmpty && mounted) {
         setState(() {
           _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
           if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
             _isHindiAudio = true;
           }
           _seasons = seasons;
-          if (_seasons.isNotEmpty) {
-            _selectedSeasonNumber = _seasons.first.seasonNumber;
-          }
+          _selectedSeasonNumber = seasons.first.seasonNumber;
         });
-        if (_seasons.isNotEmpty) {
-          _loadEpisodes(_selectedSeasonNumber);
-        }
+        _loadEpisodes(_selectedSeasonNumber);
         return;
       }
     }
 
+    // 2. Try Movie Details
     final full = await ApiService.getMovieDetails(widget.movie.id);
-    if (full != null && mounted) {
+
+    // Verify title matches (so Money Heist ID 71446 isn't misidentified as a random movie with same ID)
+    final titleMatch = full != null &&
+        (full.title.toLowerCase().contains(widget.movie.title.toLowerCase()) ||
+         widget.movie.title.toLowerCase().contains(full.title.toLowerCase()));
+
+    if (full != null && titleMatch && mounted) {
       setState(() {
         _currentMovie = full;
         if (full.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
           _isHindiAudio = true;
         }
       });
-    } else {
-      // Fallback: If movie returned 404 (e.g. Game of Thrones opened from search as movie), try TV details!
-      final tvData = await ApiService.getTVDetails(widget.movie.id);
-      final fallbackSeasons = tvData['seasons'] as List<Season>? ?? [];
-      if (fallbackSeasons.isNotEmpty && mounted) {
-        setState(() {
-          _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
-          if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
-            _isHindiAudio = true;
-          }
-          _seasons = fallbackSeasons;
-          if (_seasons.isNotEmpty) {
-            _selectedSeasonNumber = _seasons.first.seasonNumber;
-          }
-        });
-        _loadEpisodes(_selectedSeasonNumber);
-      }
+      return;
+    }
+
+    // 3. Fallback: If movie returned null (404) or title mismatched, check TV details!
+    final tvData = await ApiService.getTVDetails(widget.movie.id);
+    final fallbackSeasons = tvData['seasons'] as List<Season>? ?? [];
+    if (fallbackSeasons.isNotEmpty && mounted) {
+      setState(() {
+        _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
+        if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+          _isHindiAudio = true;
+        }
+        _seasons = fallbackSeasons;
+        _selectedSeasonNumber = fallbackSeasons.first.seasonNumber;
+      });
+      _loadEpisodes(_selectedSeasonNumber);
+    } else if (full != null && mounted) {
+      setState(() {
+        _currentMovie = full;
+        if (full.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+          _isHindiAudio = true;
+        }
+      });
     }
   }
 
@@ -117,6 +125,15 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         backgroundColor: Color(0xFF1E1E1E),
       ),
     );
+
+    // If TV and episodes haven't loaded yet, try to load them right now!
+    List<Episode> episodesToPass = List.from(_episodes);
+    if (isTv && episodesToPass.isEmpty) {
+      try {
+        episodesToPass = await ApiService.getSeasonEpisodes(_currentMovie.id, sNum);
+        if (mounted) setState(() => _episodes = episodesToPass);
+      } catch (_) {}
+    }
 
     // Resolve NetMirror HLS Stream with timeout of 8 seconds
     String? netmirrorUrl;
@@ -149,7 +166,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             seasonNumber: isTv ? sNum : null,
             episodeNumber: isTv ? epNum : null,
             initialHindiAudio: _isHindiAudio,
-            allEpisodes: isTv ? _episodes : null,
+            allEpisodes: isTv ? episodesToPass : null,
           ),
         ),
       );

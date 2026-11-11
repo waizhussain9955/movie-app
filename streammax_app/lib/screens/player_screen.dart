@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +48,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   int? _currentEpisodeNumber;
   String? _currentEpisodeTitle;
   List<Episode>? _episodes;
+  bool _isLoadingEpisodes = false;
+  double _volumeLevel = 1.0;
+  bool _showVolumeHud = false;
+  Timer? _volumeHudTimer;
 
   @override
   void initState() {
@@ -59,6 +64,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _currentEpisodeNumber = widget.episodeNumber;
     _currentEpisodeTitle = widget.episodeTitle;
     _episodes = widget.allEpisodes != null ? List.from(widget.allEpisodes!) : null;
+
+    // Pre-fetch episodes in background if opened directly into TV player
+    if ((_episodes == null || _episodes!.isEmpty) && (widget.seasonNumber != null || widget.movie.mediaType == 'tv')) {
+      ApiService.getSeasonEpisodes(widget.movie.id, widget.seasonNumber ?? 1).then((eps) {
+        if (mounted && eps.isNotEmpty) {
+          setState(() => _episodes = eps);
+        }
+      }).catchError((_) {});
+    }
 
     // Find the NetMirror dual-audio HLS server (if resolved). In Hindi mode start on it.
     for (var i = 0; i < _currentServers.length; i++) {
@@ -507,6 +521,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }
     }
 
+    window.setPlayerVolume = function(vol) {
+      if (video) {
+        video.muted = (vol <= 0.01);
+        video.defaultMuted = false;
+        video.volume = Math.max(0, Math.min(1, vol));
+        if (unmuteBtn) unmuteBtn.style.display = (video.muted) ? 'block' : 'none';
+      }
+    };
+
     video.muted = false;
     video.defaultMuted = false;
 
@@ -828,8 +851,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _showEpisodesSheet() {
-    if (_episodes == null || _episodes!.isEmpty) return;
-
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF131720),
@@ -838,117 +859,319 @@ class _PlayerScreenState extends State<PlayerScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.7,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2B3244),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+        return StatefulBuilder(
+          builder: (modalCtx, setModalState) {
+            // If episodes list is empty, trigger load inside the modal
+            if ((_episodes == null || _episodes!.isEmpty) && !_isLoadingEpisodes) {
+              _isLoadingEpisodes = true;
+              ApiService.getSeasonEpisodes(widget.movie.id, widget.seasonNumber ?? 1).then((eps) {
+                if (mounted) {
+                  setState(() {
+                    _episodes = eps;
+                    _isLoadingEpisodes = false;
+                  });
+                  setModalState(() {});
+                }
+              }).catchError((_) {
+                if (mounted) {
+                  setState(() => _isLoadingEpisodes = false);
+                  setModalState(() {});
+                }
+              });
+            }
+
+            final eps = _episodes ?? [];
+
+            return SafeArea(
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.75,
                 ),
-                Row(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.video_library_rounded, color: Color(0xFFE50914), size: 22),
-                    const SizedBox(width: 10),
-                    Text(
-                      'Season ${widget.seasonNumber ?? 1} Episodes',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2B3244),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                const Divider(color: Color(0xFF202634), height: 16),
-                Expanded(
-                  child: ListView.separated(
-                    itemCount: _episodes!.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, idx) {
-                      final ep = _episodes![idx];
-                      final isCurrent = ep.episodeNumber == _currentEpisodeNumber;
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: isCurrent ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isCurrent ? const Color(0xFFE50914) : const Color(0xFF202634),
+                    Row(
+                      children: [
+                        const Icon(Icons.video_library_rounded, color: Color(0xFFE50914), size: 22),
+                        const SizedBox(width: 10),
+                        Text(
+                          'Season ${widget.seasonNumber ?? 1} Episodes (${eps.length})',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        child: ListTile(
-                          dense: true,
-                          leading: CircleAvatar(
-                            radius: 13,
-                            backgroundColor: isCurrent ? const Color(0xFFE50914) : const Color(0xFF2B3244),
-                            child: Text(
-                              '${ep.episodeNumber}',
-                              style: TextStyle(
-                                color: isCurrent ? Colors.white : const Color(0xFF9EA3AE),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Color(0xFF202634), height: 16),
+                    if (_isLoadingEpisodes && eps.isEmpty)
+                      const Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircularProgressIndicator(color: Color(0xFFE50914)),
+                              SizedBox(height: 14),
+                              Text('Loading episodes...', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (eps.isEmpty)
+                      const Expanded(
+                        child: Center(
+                          child: Text('No episodes found for this season', style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 13)),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.separated(
+                          itemCount: eps.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, idx) {
+                            final ep = eps[idx];
+                            final isCurrent = ep.episodeNumber == _currentEpisodeNumber;
+                            return Container(
+                              decoration: BoxDecoration(
+                                color: isCurrent ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isCurrent ? const Color(0xFFE50914) : const Color(0xFF202634),
+                                ),
                               ),
-                            ),
-                          ),
-                          title: Text(
-                            ep.name,
-                            style: TextStyle(
-                              color: isCurrent ? Colors.white : const Color(0xFFD0D4DC),
-                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            ep.overview.isNotEmpty ? ep.overview : 'Episode ${ep.episodeNumber}',
-                            style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: isCurrent
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE50914),
-                                    borderRadius: BorderRadius.circular(4),
+                              child: ListTile(
+                                dense: true,
+                                leading: CircleAvatar(
+                                  radius: 13,
+                                  backgroundColor: isCurrent ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                  child: Text(
+                                    '${ep.episodeNumber}',
+                                    style: TextStyle(
+                                      color: isCurrent ? Colors.white : const Color(0xFF9EA3AE),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                  child: const Text('PLAYING', style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold)),
-                                )
-                              : const Icon(Icons.play_circle_outline, color: Colors.white54, size: 20),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            _switchEpisode(ep);
+                                ),
+                                title: Text(
+                                  ep.name,
+                                  style: TextStyle(
+                                    color: isCurrent ? Colors.white : const Color(0xFFD0D4DC),
+                                    fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  ep.overview.isNotEmpty ? ep.overview : 'Episode ${ep.episodeNumber}',
+                                  style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: isCurrent
+                                    ? Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFE50914),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text('PLAYING', style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                                      )
+                                    : const Icon(Icons.play_circle_outline, color: Colors.white54, size: 20),
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  _switchEpisode(ep);
+                                },
+                              ),
+                            );
                           },
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
+  }
+
+  void _setVolume(double vol) {
+    setState(() {
+      _volumeLevel = vol.clamp(0.0, 1.0);
+      _showVolumeHud = true;
+    });
+    _webController.runJavaScript('if (window.setPlayerVolume) window.setPlayerVolume($_volumeLevel);');
+    _volumeHudTimer?.cancel();
+    _volumeHudTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _showVolumeHud = false);
+    });
+  }
+
+  void _showVolumeDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF131720),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final volPct = (_volumeLevel * 100).round();
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2B3244),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              _volumeLevel <= 0.01
+                                  ? Icons.volume_off_rounded
+                                  : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+                              color: const Color(0xFFE50914),
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Player Volume Control',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE50914).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE50914), width: 0.8),
+                          ),
+                          child: Text(
+                            '$volPct%',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Smooth volume slider (0% to 100%)
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: const Color(0xFFE50914),
+                        inactiveTrackColor: const Color(0xFF2B3244),
+                        thumbColor: Colors.white,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                        overlayColor: const Color(0xFFE50914).withValues(alpha: 0.2),
+                        trackHeight: 6,
+                      ),
+                      child: Slider(
+                        value: _volumeLevel,
+                        min: 0.0,
+                        max: 1.0,
+                        divisions: 100,
+                        onChanged: (val) {
+                          setModalState(() {});
+                          _setVolume(val);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // Quick Presets Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [0.0, 0.25, 0.5, 0.75, 1.0].map((v) {
+                        final label = v == 0.0 ? 'Mute' : '${(v * 100).round()}%';
+                        final isSel = (_volumeLevel - v).abs() < 0.05;
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {});
+                            _setVolume(v);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSel ? const Color(0xFFE50914) : const Color(0xFF1B202B),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: isSel ? const Color(0xFFE50914) : const Color(0xFF2B3244)),
+                            ),
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                color: isSel ? Colors.white : const Color(0xFF9EA3AE),
+                                fontSize: 11.5,
+                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _skipAdOrNextServer() {
+    if (_currentServers.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('⚠️ Only 1 streaming mirror available'),
+          backgroundColor: Color(0xFFE50914),
+        ),
+      );
+      return;
+    }
+    final nextIdx = (_selectedServerIndex + 1) % _currentServers.length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('⚡ Ad Skipped! Switching to ${_currentServers[nextIdx].name.split(" (")[0]}...'),
+        backgroundColor: const Color(0xFFE50914),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    _switchServer(nextIdx);
   }
 
   void _showAudioLanguageDialog() {
@@ -1380,12 +1603,30 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         onPressed: _showAudioLanguageDialog,
                       ),
                       // Episodes Drawer (for TV Series)
-                      if (_episodes != null && _episodes!.isNotEmpty)
+                      if (widget.movie.mediaType == 'tv' || widget.seasonNumber != null || (_episodes != null && _episodes!.isNotEmpty))
                         IconButton(
                           icon: const Icon(Icons.video_library_rounded, color: Colors.white, size: 20),
                           tooltip: 'Episodes',
                           onPressed: _showEpisodesSheet,
                         ),
+                      // Volume Slider Dialog
+                      IconButton(
+                        icon: Icon(
+                          _volumeLevel <= 0.01
+                              ? Icons.volume_off_rounded
+                              : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        tooltip: 'Volume Slider (${(_volumeLevel * 100).round()}%)',
+                        onPressed: _showVolumeDialog,
+                      ),
+                      // Skip / Remove Ad
+                      IconButton(
+                        icon: const Icon(Icons.skip_next_rounded, color: Colors.amber, size: 22),
+                        tooltip: 'Skip / Remove Ad',
+                        onPressed: _skipAdOrNextServer,
+                      ),
                       // Server Mirror Switcher Icon
                       IconButton(
                         icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
@@ -1499,7 +1740,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ),
                             const SizedBox(width: 8),
                             // Quick Episode Selector in Landscape
-                            if (_episodes != null && _episodes!.isNotEmpty) ...[
+                            if (widget.movie.mediaType == 'tv' || widget.seasonNumber != null || (_episodes != null && _episodes!.isNotEmpty)) ...[
                               InkWell(
                                 onTap: _showEpisodesSheet,
                                 borderRadius: BorderRadius.circular(16),
@@ -1524,6 +1765,60 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ),
                               const SizedBox(width: 8),
                             ],
+                            // Volume Slider in Landscape
+                            InkWell(
+                              onTap: _showVolumeDialog,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF131720),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFF202634)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      _volumeLevel <= 0.01
+                                          ? Icons.volume_off_rounded
+                                          : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+                                      color: Colors.white70,
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      '${(_volumeLevel * 100).round()}%',
+                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Skip / Remove Ad in Landscape
+                            InkWell(
+                              onTap: _skipAdOrNextServer,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade900.withValues(alpha: 0.8),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: Colors.amber, width: 0.8),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.skip_next_rounded, color: Colors.white, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Skip Ad',
+                                      style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
                             // Quick Server Switcher in Landscape
                             InkWell(
                               onTap: _showServerSelectionSheet,
@@ -1556,6 +1851,85 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                  ),
+
+                // Swipe on right side to smoothly control volume up/down
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: MediaQuery.sizeOf(context).width * 0.45,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onVerticalDragUpdate: (details) {
+                          final delta = -details.delta.dy / 200.0;
+                          _setVolume(_volumeLevel + delta);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Floating "Skip Ad" Button (Portrait)
+                if (!isLandscape && _currentServers.length > 1)
+                  Positioned(
+                    top: 14,
+                    right: 14,
+                    child: InkWell(
+                      onTap: _skipAdOrNextServer,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131720).withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.amber, width: 0.8),
+                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 6)],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.skip_next_rounded, color: Colors.amber, size: 14),
+                            SizedBox(width: 4),
+                            Text(
+                              'Skip Ad',
+                              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Smooth Volume HUD Indicator (Center of screen)
+                if (_showVolumeHud)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE50914), width: 1.5),
+                        boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 12)],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _volumeLevel <= 0.01
+                                ? Icons.volume_off_rounded
+                                : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+                            color: const Color(0xFFE50914),
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Volume: ${(_volumeLevel * 100).round()}%',
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
                       ),
                     ),
                   ),

@@ -141,14 +141,7 @@ class ApiService {
       }
     } catch (_) {}
 
-    return Movie(
-      id: id,
-      title: 'Movie',
-      rating: 8.5,
-      year: '2024',
-      mediaType: 'movie',
-      servers: generateServers(id, isTv: false),
-    );
+    return null;
   }
 
   /// Get TV Series Details + Seasons List

@@ -15,6 +15,7 @@ class PlayerScreen extends StatefulWidget {
   final int? seasonNumber;
   final int? episodeNumber;
   final bool initialHindiAudio;
+  final List<Episode>? allEpisodes;
 
   const PlayerScreen({
     super.key,
@@ -25,6 +26,7 @@ class PlayerScreen extends StatefulWidget {
     this.seasonNumber,
     this.episodeNumber,
     this.initialHindiAudio = false,
+    this.allEpisodes,
   });
 
   @override
@@ -41,10 +43,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _isLandscape = false;
   bool _isHindiAudio = false;
   int _fallbackAttempts = 0;
-  // The NetMirror HLS (.m3u8) URL is the ONLY server with a real dual-audio
-  // picker. Remember it so a language switch never drops it (the old code
-  // regenerated the server list without it).
   String? _netMirrorStreamUrl;
+  int? _currentEpisodeNumber;
+  String? _currentEpisodeTitle;
+  List<Episode>? _episodes;
 
   @override
   void initState() {
@@ -54,9 +56,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _isHindiAudio = widget.initialHindiAudio ||
         widget.movie.isHindi ||
         widget.movie.isHindiDubbed;
-    // Find the NetMirror dual-audio HLS server (if the detail screen
-    // resolved one). In Hindi mode start on it — the embed servers all
-    // default to English audio.
+    _currentEpisodeNumber = widget.episodeNumber;
+    _currentEpisodeTitle = widget.episodeTitle;
+    _episodes = widget.allEpisodes != null ? List.from(widget.allEpisodes!) : null;
+
+    // Find the NetMirror dual-audio HLS server (if resolved). In Hindi mode start on it.
     for (var i = 0; i < _currentServers.length; i++) {
       if (_currentServers[i].url.contains('.m3u8')) {
         _netMirrorStreamUrl = _currentServers[i].url;
@@ -616,26 +620,36 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
       });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, function() {
+      function autoSelectPreferredAudio() {
         var tracks = hls.audioTracks || [];
-        var switched = false;
         if (preferHindi && tracks.length > 0) {
           for (var i = 0; i < tracks.length; i++) {
             var t = tracks[i];
             var lang = (t.lang || '').toLowerCase();
             var name = (t.name || '').toLowerCase();
             if (lang.includes('hin') || name.includes('hindi')) {
-              setAudioTrack(i);
-              switched = true;
-              break;
+              if (hls.audioTrack !== i) {
+                setAudioTrack(i);
+              }
+              return true;
             }
           }
         }
-        if (!switched) {
+        return false;
+      }
+
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, function() {
+        autoSelectPreferredAudio();
+      });
+
+      hls.on(Hls.Events.MANIFEST_PARSED, function() {
+        var didSwitch = autoSelectPreferredAudio();
+        if (!didSwitch) {
+          var tracks = hls.audioTracks || [];
           if (tracks.length > 0) {
             currentAudioLabel.innerText = tracks[hls.audioTrack >= 0 ? hls.audioTrack : 0].name || 'Audio Track';
           } else {
-            currentAudioLabel.innerText = preferHindi ? 'Hindi / Original' : 'Standard Audio';
+            currentAudioLabel.innerText = preferHindi ? 'Hindi Dubbed 🇮🇳' : 'Standard Audio';
           }
         }
         video.muted = false;
@@ -775,6 +789,166 @@ class _PlayerScreenState extends State<PlayerScreen> {
         );
       }
     }
+  }
+
+  Future<void> _switchEpisode(Episode ep) async {
+    setState(() {
+      _currentEpisodeNumber = ep.episodeNumber;
+      _currentEpisodeTitle = 'S${ep.seasonNumber} E${ep.episodeNumber}: ${ep.name}';
+      _isLoading = true;
+      _hasLoadedSuccessfully = false;
+    });
+
+    String? netmirrorUrl;
+    try {
+      netmirrorUrl = await NetMirrorService.resolveStream(
+        widget.movie.title,
+        isTv: true,
+        season: ep.seasonNumber,
+        episode: ep.episodeNumber,
+      ).timeout(const Duration(seconds: 8), onTimeout: () => null);
+    } catch (_) {}
+
+    final servers = ApiService.generateServers(
+      widget.movie.id,
+      isTv: true,
+      season: ep.seasonNumber,
+      episode: ep.episodeNumber,
+      isHindiAudio: _isHindiAudio,
+      netMirrorStreamUrl: netmirrorUrl,
+    );
+
+    setState(() {
+      _currentServers = servers;
+      _netMirrorStreamUrl = netmirrorUrl;
+      _selectedServerIndex = 0;
+    });
+
+    _loadActiveStream(servers.first.url);
+  }
+
+  void _showEpisodesSheet() {
+    if (_episodes == null || _episodes!.isEmpty) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF131720),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * 0.7,
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B3244),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.video_library_rounded, color: Color(0xFFE50914), size: 22),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Season ${widget.seasonNumber ?? 1} Episodes',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Divider(color: Color(0xFF202634), height: 16),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: _episodes!.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (context, idx) {
+                      final ep = _episodes![idx];
+                      final isCurrent = ep.episodeNumber == _currentEpisodeNumber;
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: isCurrent ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isCurrent ? const Color(0xFFE50914) : const Color(0xFF202634),
+                          ),
+                        ),
+                        child: ListTile(
+                          dense: true,
+                          leading: CircleAvatar(
+                            radius: 13,
+                            backgroundColor: isCurrent ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                            child: Text(
+                              '${ep.episodeNumber}',
+                              style: TextStyle(
+                                color: isCurrent ? Colors.white : const Color(0xFF9EA3AE),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          title: Text(
+                            ep.name,
+                            style: TextStyle(
+                              color: isCurrent ? Colors.white : const Color(0xFFD0D4DC),
+                              fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                              fontSize: 13,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            ep.overview.isNotEmpty ? ep.overview : 'Episode ${ep.episodeNumber}',
+                            style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: isCurrent
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE50914),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text('PLAYING', style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.bold)),
+                                )
+                              : const Icon(Icons.play_circle_outline, color: Colors.white54, size: 20),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _switchEpisode(ep);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showAudioLanguageDialog() {
@@ -1130,9 +1304,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.episodeTitle != null
-        ? '${widget.movie.title} - ${widget.episodeTitle}'
-        : widget.movie.title;
+    final title = _currentEpisodeTitle ??
+        (widget.episodeTitle != null
+            ? '${widget.movie.title} - ${widget.episodeTitle}'
+            : widget.movie.title);
 
     return OrientationBuilder(
       builder: (context, orientation) {
@@ -1204,6 +1379,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         tooltip: 'Audio Language',
                         onPressed: _showAudioLanguageDialog,
                       ),
+                      // Episodes Drawer (for TV Series)
+                      if (_episodes != null && _episodes!.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.video_library_rounded, color: Colors.white, size: 20),
+                          tooltip: 'Episodes',
+                          onPressed: _showEpisodesSheet,
+                        ),
                       // Server Mirror Switcher Icon
                       IconButton(
                         icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
@@ -1316,6 +1498,32 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
+                            // Quick Episode Selector in Landscape
+                            if (_episodes != null && _episodes!.isNotEmpty) ...[
+                              InkWell(
+                                onTap: _showEpisodesSheet,
+                                borderRadius: BorderRadius.circular(16),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF131720),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: const Color(0xFF202634)),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const Icon(Icons.video_library_rounded, color: Colors.white70, size: 14),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        _currentEpisodeNumber != null ? 'Ep $_currentEpisodeNumber' : 'Episodes',
+                                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
                             // Quick Server Switcher in Landscape
                             InkWell(
                               onTap: _showServerSelectionSheet,

@@ -35,6 +35,40 @@ class Movie {
     this.isHindiDubbed = false,
   });
 
+  Movie copyWith({
+    int? id,
+    String? title,
+    String? overview,
+    String? posterUrl,
+    String? backdropUrl,
+    double? rating,
+    String? year,
+    String? mediaType,
+    List<String>? genres,
+    int? runtime,
+    List<StreamServer>? servers,
+    String? releaseDate,
+    String? originalLanguage,
+    bool? isHindiDubbed,
+  }) {
+    return Movie(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      overview: overview ?? this.overview,
+      posterUrl: posterUrl ?? this.posterUrl,
+      backdropUrl: backdropUrl ?? this.backdropUrl,
+      rating: rating ?? this.rating,
+      year: year ?? this.year,
+      mediaType: mediaType ?? this.mediaType,
+      genres: genres ?? this.genres,
+      runtime: runtime ?? this.runtime,
+      servers: servers ?? this.servers,
+      releaseDate: releaseDate ?? this.releaseDate,
+      originalLanguage: originalLanguage ?? this.originalLanguage,
+      isHindiDubbed: isHindiDubbed ?? this.isHindiDubbed,
+    );
+  }
+
   bool get isHindi => originalLanguage == 'hi';
 
   bool get isUpcoming {

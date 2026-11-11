@@ -81,8 +81,8 @@ class NetMirrorService {
       final cleanTitle = title.split('(').first.split(':').first.trim();
 
       // Search across OTT providers:
-      // nf = Netflix, hb = HBO Max (Game of Thrones, House of the Dragon), amz = Prime Video, dnp = Disney+
-      final ottList = ['nf', 'hb', 'amz', 'dnp'];
+      // nf = Netflix, hs = Hotstar / HBO (Game of Thrones, Avengers, Marvel), pv = Prime Video (Mirzapur, The Boys)
+      final ottList = ['nf', 'hs', 'pv'];
       List results = [];
       String activeOtt = 'nf';
 
@@ -109,13 +109,34 @@ class NetMirrorService {
 
       final ottHeaders = {..._headers, 'Ott': activeOtt};
 
-      // Find best title match
+      // Find best title match (exact -> clean -> contains -> first)
       Map<String, dynamic>? match;
+      final fullLower = title.toLowerCase().trim();
+      final cleanLower = cleanTitle.toLowerCase().trim();
+
       for (final r in results) {
-        final t = (r['t'] ?? '').toString().toLowerCase();
-        if (t == cleanTitle.toLowerCase() || t == title.toLowerCase()) {
+        final t = (r['t'] ?? '').toString().toLowerCase().trim();
+        if (t == fullLower) {
           match = r as Map<String, dynamic>;
           break;
+        }
+      }
+      if (match == null) {
+        for (final r in results) {
+          final t = (r['t'] ?? '').toString().toLowerCase().trim();
+          if (t == cleanLower) {
+            match = r as Map<String, dynamic>;
+            break;
+          }
+        }
+      }
+      if (match == null) {
+        for (final r in results) {
+          final t = (r['t'] ?? '').toString().toLowerCase().trim();
+          if (t.contains(cleanLower) || cleanLower.contains(t)) {
+            match = r as Map<String, dynamic>;
+            break;
+          }
         }
       }
       match ??= results.first as Map<String, dynamic>;
@@ -134,15 +155,30 @@ class NetMirrorService {
       String? targetEpisodeId;
 
       if (isTv) {
+        bool matchesSeasonInfo(List info) {
+          final sStr = 's$season';
+          return info.any((i) {
+            final str = i.toString().toLowerCase();
+            return str == sStr || str.contains(sStr) || str.contains('season $season');
+          });
+        }
+
+        bool matchesEpInfo(int? epNum, List info) {
+          if (epNum == episode) return true;
+          final epStr = 'e$episode';
+          return info.any((i) {
+            final str = i.toString().toLowerCase();
+            return str == epStr || str.startsWith('$epStr:') || str.contains(epStr);
+          });
+        }
+
         final episodes = (postData['episodes'] as List? ?? []).cast<Map<String, dynamic>>();
 
         // Try to find matching episode in initial list
         for (final ep in episodes) {
           final epNum = int.tryParse(ep['ep']?.toString() ?? '');
-          final infoList = (ep['info'] as List? ?? []).map((e) => e.toString().toLowerCase()).toList();
-          final isMatchSeason = infoList.contains('s$season');
-          final isMatchEp = epNum == episode || infoList.contains('e$episode');
-          if (isMatchSeason && isMatchEp) {
+          final infoList = (ep['info'] as List? ?? []);
+          if (matchesSeasonInfo(infoList) && matchesEpInfo(epNum, infoList)) {
             targetEpisodeId = ep['id']?.toString();
             break;
           }
@@ -167,7 +203,7 @@ class NetMirrorService {
             final seasonId = seasonObj['id']?.toString();
             if (seasonId != null) {
               final epRes = await http.get(
-                Uri.parse('$api/newtv/episodes.php?id=${Uri.encodeComponent(seasonId)}&page=1'),
+                Uri.parse('$api/newtv/episodes.php?id=${Uri.encodeComponent(seasonId)}'),
                 headers: ottHeaders,
               ).timeout(const Duration(seconds: 8));
 
@@ -176,8 +212,8 @@ class NetMirrorService {
                 final sEpisodes = (epData['episodes'] as List? ?? []).cast<Map<String, dynamic>>();
                 for (final ep in sEpisodes) {
                   final epNum = int.tryParse(ep['ep']?.toString() ?? '');
-                  final infoList = (ep['info'] as List? ?? []).map((e) => e.toString().toLowerCase()).toList();
-                  if (epNum == episode || infoList.contains('e$episode')) {
+                  final infoList = (ep['info'] as List? ?? []);
+                  if (matchesEpInfo(epNum, infoList)) {
                     targetEpisodeId = ep['id']?.toString();
                     break;
                   }

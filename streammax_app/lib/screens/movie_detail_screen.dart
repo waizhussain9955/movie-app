@@ -42,19 +42,18 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   }
 
   Future<void> _fetchDetails() async {
-    if (_currentMovie.mediaType == 'tv') {
+    final isTvCandidate = _currentMovie.mediaType == 'tv';
+
+    if (isTvCandidate) {
       final tvData = await ApiService.getTVDetails(widget.movie.id);
       if (mounted) {
+        final seasons = tvData['seasons'] as List<Season>? ?? [];
         setState(() {
-          _currentMovie = tvData['movie'] as Movie;
-          // NOTE: getTVDetails rebuilds the Movie, so the isHindiDubbed tag
-          // from the home row is lost here — read it from widget.movie.
-          if (_currentMovie.isHindi ||
-              widget.initialHindiAudio ||
-              widget.movie.isHindiDubbed) {
+          _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
+          if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
             _isHindiAudio = true;
           }
-          _seasons = tvData['seasons'] as List<Season>;
+          _seasons = seasons;
           if (_seasons.isNotEmpty) {
             _selectedSeasonNumber = _seasons.first.seasonNumber;
           }
@@ -62,20 +61,34 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         if (_seasons.isNotEmpty) {
           _loadEpisodes(_selectedSeasonNumber);
         }
+        return;
       }
+    }
+
+    final full = await ApiService.getMovieDetails(widget.movie.id);
+    if (full != null && mounted) {
+      setState(() {
+        _currentMovie = full;
+        if (full.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+          _isHindiAudio = true;
+        }
+      });
     } else {
-      final full = await ApiService.getMovieDetails(widget.movie.id);
-      if (full != null && mounted) {
+      // Fallback: If movie returned 404 (e.g. Game of Thrones opened from search as movie), try TV details!
+      final tvData = await ApiService.getTVDetails(widget.movie.id);
+      final fallbackSeasons = tvData['seasons'] as List<Season>? ?? [];
+      if (fallbackSeasons.isNotEmpty && mounted) {
         setState(() {
-          _currentMovie = full;
-          // NOTE: getMovieDetails rebuilds the Movie, so the isHindiDubbed
-          // tag from the home row is lost here — read it from widget.movie.
-          if (full.isHindi ||
-              widget.initialHindiAudio ||
-              widget.movie.isHindiDubbed) {
+          _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
+          if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
             _isHindiAudio = true;
           }
+          _seasons = fallbackSeasons;
+          if (_seasons.isNotEmpty) {
+            _selectedSeasonNumber = _seasons.first.seasonNumber;
+          }
         });
+        _loadEpisodes(_selectedSeasonNumber);
       }
     }
   }
@@ -136,6 +149,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
             seasonNumber: isTv ? sNum : null,
             episodeNumber: isTv ? epNum : null,
             initialHindiAudio: _isHindiAudio,
+            allEpisodes: isTv ? _episodes : null,
           ),
         ),
       );
@@ -160,7 +174,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFF0A0C10),
         body: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
           slivers: [
             // 1. Sliver App Bar with Backdrop Image & Back Button
             SliverAppBar(
@@ -516,7 +530,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       ),
                     const SizedBox(height: 24),
 
-                    // 3. TV SERIES SEASONS & EPISODES SECTION
+                    // 3. TV SERIES SEASONS SECTION
                     if (isTv) ...[
                       const Text(
                         'SEASONS & EPISODES',
@@ -571,129 +585,138 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           ),
                         ),
                       const SizedBox(height: 16),
-
-                      // Episode List
-                      if (_isLoadingEpisodes)
-                        const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(28.0),
-                            child: CircularProgressIndicator(color: Color(0xFFE50914), strokeWidth: 3),
-                          ),
-                        )
-                      else if (_episodes.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.all(16.0),
-                          child: Text(
-                            'Episodes will be loaded shortly...',
-                            style: TextStyle(color: Color(0xFF7E8695)),
-                          ),
-                        )
-                      else
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _episodes.length,
-                          separatorBuilder: (_, _) => const SizedBox(height: 10),
-                          itemBuilder: (context, idx) {
-                            final ep = _episodes[idx];
-                            return InkWell(
-                              onTap: () => _playEpisode(ep),
-                              borderRadius: BorderRadius.circular(10),
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF131720),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFF202634)),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // Episode Thumbnail
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          SizedBox(
-                                            width: 104,
-                                            height: 64,
-                                            child: ep.stillUrl != null
-                                                ? CachedNetworkImage(
-                                                    imageUrl: ep.stillUrl!,
-                                                    fit: BoxFit.cover,
-                                                    placeholder: (_, _) => Container(color: const Color(0xFF1B202B)),
-                                                    errorWidget: (_, _, _) => Container(
-                                                      color: const Color(0xFF1B202B),
-                                                      child: const Icon(Icons.movie_rounded, color: Colors.white24),
-                                                    ),
-                                                  )
-                                                : Container(
-                                                    color: const Color(0xFF1B202B),
-                                                    child: const Icon(Icons.movie_rounded, color: Colors.white24),
-                                                  ),
-                                          ),
-                                          Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.65),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white24, width: 0.8),
-                                            ),
-                                            child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-
-                                    // Episode Meta
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            '${ep.episodeNumber}. ${ep.name}',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 13.5,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            ep.overview.isNotEmpty ? ep.overview : 'No description available.',
-                                            style: const TextStyle(
-                                              color: Color(0xFF9EA3AE),
-                                              fontSize: 11,
-                                              height: 1.3,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.play_circle_fill, color: Color(0xFFE50914), size: 30),
-                                      onPressed: () => _playEpisode(ep),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
                     ],
-
-                    const SizedBox(height: 40),
                   ],
                 ),
               ),
             ),
+
+            // 4. Native Butter-Smooth Episodes SliverList
+            if (isTv) ...[
+              if (_isLoadingEpisodes)
+                const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(28.0),
+                      child: CircularProgressIndicator(color: Color(0xFFE50914), strokeWidth: 3),
+                    ),
+                  ),
+                )
+              else if (_episodes.isEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(
+                      child: Text(
+                        'Episodes will be loaded shortly...',
+                        style: TextStyle(color: Color(0xFF7E8695)),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                  sliver: SliverList.separated(
+                    itemCount: _episodes.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, idx) {
+                      final ep = _episodes[idx];
+                      return InkWell(
+                        onTap: () => _playEpisode(ep),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF131720),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF202634)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Episode Thumbnail
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 104,
+                                      height: 64,
+                                      child: ep.stillUrl != null
+                                          ? CachedNetworkImage(
+                                              imageUrl: ep.stillUrl!,
+                                              fit: BoxFit.cover,
+                                              placeholder: (_, _) => Container(color: const Color(0xFF1B202B)),
+                                              errorWidget: (_, _, _) => Container(
+                                                color: const Color(0xFF1B202B),
+                                                child: const Icon(Icons.movie_rounded, color: Colors.white24),
+                                              ),
+                                            )
+                                          : Container(
+                                              color: const Color(0xFF1B202B),
+                                              child: const Icon(Icons.movie_rounded, color: Colors.white24),
+                                            ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.65),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white24, width: 0.8),
+                                      ),
+                                      child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+
+                              // Episode Meta
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${ep.episodeNumber}. ${ep.name}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      ep.overview.isNotEmpty ? ep.overview : 'No description available.',
+                                      style: const TextStyle(
+                                        color: Color(0xFF9EA3AE),
+                                        fontSize: 11,
+                                        height: 1.3,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.play_circle_fill, color: Color(0xFFE50914), size: 30),
+                                onPressed: () => _playEpisode(ep),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+            if (!isTv)
+              const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         ),
       ),

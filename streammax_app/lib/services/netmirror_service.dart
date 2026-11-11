@@ -241,33 +241,9 @@ class NetMirrorService {
       final referer = playerData['referer']?.toString() ?? 'https://net52.cc';
 
       if (videoLink != null && videoLink.isNotEmpty) {
-        final linkLower = videoLink.toLowerCase();
-        // If NetMirror returned the anti-abuse/rate-limit banner video, reject it so the app falls back to working multi-audio servers
-        if (linkLower.contains('abuse') ||
-            linkLower.contains('ratelimit') ||
-            linkLower.contains('stop_abuse') ||
-            linkLower.contains('veed') ||
-            linkLower.contains('warning') ||
-            linkLower.contains('wait few minutes')) {
-          debugPrint('⚠️ [NetMirror] Rate limited / abuse banner detected, falling back to clean embed server');
-          return null;
-        }
-
-        // Deep verification: Check if NetMirror served the static abuse video track (220884)
-        try {
-          final m3u8Res = await http.get(
-            Uri.parse(videoLink),
-            headers: ottHeaders,
-          ).timeout(const Duration(seconds: 4));
-          if (m3u8Res.statusCode == 200 && (m3u8Res.body.contains('220884') || m3u8Res.body.contains('veed') || m3u8Res.body.contains('abuse'))) {
-            debugPrint('⚠️ [NetMirror] Stream contains fake abuse video track (220884), rejecting!');
-            return null;
-          }
-        } catch (_) {}
-
         final fullStream = '$videoLink#referer=$referer';
         _streamCache[cacheKey] = fullStream;
-        debugPrint('🎯 [NetMirror] Found clean HLS stream: $fullStream');
+        debugPrint('🎯 [NetMirror] Found dual-audio HLS stream: $fullStream');
         return fullStream;
       }
     } catch (e) {

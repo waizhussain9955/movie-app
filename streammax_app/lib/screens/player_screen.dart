@@ -216,22 +216,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
               } catch(e) {}
             ''').catchError((_) {});
 
-            // Auto-detect NetMirror rate limit ("Too Many Requests" / "STOP Abuse") and switch to VidLink
-            _webController.runJavaScriptReturningResult('document.body.innerText').then((result) {
-              final text = result.toString().toLowerCase();
-              if (text.contains('stop abuse') || text.contains('too many requests')) {
-                if (mounted && _selectedServerIndex == 0 && _currentServers.length > 1) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('⚡ NetMirror is busy. Auto-switched to Server 2 (VidLink Pro)'),
-                      backgroundColor: Color(0xFFE50914),
-                      duration: Duration(seconds: 3),
-                    ),
-                  );
-                  _switchServer(1, auto: true);
-                }
-              }
-            }).catchError((_) {});
+            // Ensure media is unmuted on start
+            _webController.runJavaScript('if(window.unmuteAudio) window.unmuteAudio();').catchError((_) {});
           },
           onWebResourceError: (WebResourceError error) {
             // CRITICAL FIX: Only handle fallback if MAIN frame failed during INITIAL load.
@@ -1153,26 +1139,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
     );
   }
 
-  void _skipAdOrNextServer() {
-    if (_currentServers.length <= 1) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('⚠️ Only 1 streaming mirror available'),
-          backgroundColor: Color(0xFFE50914),
-        ),
-      );
-      return;
-    }
-    final nextIdx = (_selectedServerIndex + 1) % _currentServers.length;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('⚡ Ad Skipped! Switching to ${_currentServers[nextIdx].name.split(" (")[0]}...'),
-        backgroundColor: const Color(0xFFE50914),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    _switchServer(nextIdx);
-  }
 
   void _showAudioLanguageDialog() {
     showModalBottomSheet(
@@ -1594,10 +1560,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     actions: [
                       // Audio Language Icon
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         icon: Icon(
                           Icons.multitrack_audio_rounded,
                           color: _isHindiAudio ? const Color(0xFFE50914) : Colors.white,
-                          size: 22,
+                          size: 20,
                         ),
                         tooltip: 'Audio Language',
                         onPressed: _showAudioLanguageDialog,
@@ -1605,12 +1573,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       // Episodes Drawer (for TV Series)
                       if (widget.movie.mediaType == 'tv' || widget.seasonNumber != null || (_episodes != null && _episodes!.isNotEmpty))
                         IconButton(
+                          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           icon: const Icon(Icons.video_library_rounded, color: Colors.white, size: 20),
                           tooltip: 'Episodes',
                           onPressed: _showEpisodesSheet,
                         ),
                       // Volume Slider Dialog
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         icon: Icon(
                           _volumeLevel <= 0.01
                               ? Icons.volume_off_rounded
@@ -1621,29 +1593,61 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         tooltip: 'Volume Slider (${(_volumeLevel * 100).round()}%)',
                         onPressed: _showVolumeDialog,
                       ),
-                      // Skip / Remove Ad
-                      IconButton(
-                        icon: const Icon(Icons.skip_next_rounded, color: Colors.amber, size: 22),
-                        tooltip: 'Skip / Remove Ad',
-                        onPressed: _skipAdOrNextServer,
-                      ),
                       // Server Mirror Switcher Icon
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
                         tooltip: 'Switch Mirror',
                         onPressed: _showServerSelectionSheet,
                       ),
                       // Cinema Mode (Rotate)
                       IconButton(
+                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
                         icon: const Icon(Icons.crop_rotate_rounded, color: Colors.white, size: 20),
                         tooltip: 'Cinema Mode',
                         onPressed: _toggleOrientation,
                       ),
-                      // Reload
-                      IconButton(
-                        icon: const Icon(Icons.refresh_rounded, color: Color(0xFF9EA3AE), size: 20),
-                        tooltip: 'Reload Stream',
-                        onPressed: () => _webController.reload(),
+                      // More / Reload Popup Menu
+                      PopupMenuButton<String>(
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF9EA3AE), size: 20),
+                        color: const Color(0xFF131720),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFF202634)),
+                        ),
+                        onSelected: (val) {
+                          if (val == 'reload') {
+                            _webController.reload();
+                          } else if (val == 'info') {
+                            _showServerSelectionSheet();
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'reload',
+                            child: Row(
+                              children: [
+                                Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
+                                SizedBox(width: 10),
+                                Text('Reload Stream', style: TextStyle(color: Colors.white, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'info',
+                            child: Row(
+                              children: [
+                                Icon(Icons.dns_rounded, color: Color(0xFFE50914), size: 18),
+                                SizedBox(width: 10),
+                                Text('Change Mirror', style: TextStyle(color: Colors.white, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(width: 4),
                     ],
@@ -1795,30 +1799,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            // Skip / Remove Ad in Landscape
-                            InkWell(
-                              onTap: _skipAdOrNextServer,
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: Colors.amber.shade900.withValues(alpha: 0.8),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: Colors.amber, width: 0.8),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.skip_next_rounded, color: Colors.white, size: 14),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'Skip Ad',
-                                      style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
+
                             // Quick Server Switcher in Landscape
                             InkWell(
                               onTap: _showServerSelectionSheet,
@@ -1872,36 +1853,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
                 ),
 
-                // Floating "Skip Ad" Button (Portrait)
-                if (!isLandscape && _currentServers.length > 1)
-                  Positioned(
-                    top: 14,
-                    right: 14,
-                    child: InkWell(
-                      onTap: _skipAdOrNextServer,
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF131720).withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.amber, width: 0.8),
-                          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 6)],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.skip_next_rounded, color: Colors.amber, size: 14),
-                            SizedBox(width: 4),
-                            Text(
-                              'Skip Ad',
-                              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
 
                 // Smooth Volume HUD Indicator (Center of screen)
                 if (_showVolumeHud)

@@ -1388,20 +1388,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 }),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: const Color(0xFF1A1F2C),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: const Color(0xFF2B3244)),
                   ),
                   child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.tips_and_updates_outlined, color: Colors.amber, size: 16),
-                      SizedBox(width: 8),
+                      Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+                      SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'If video buffers or audio differs, switch between Mirror 1 (NetMirror) and Mirror 2 (VidLink Pro).',
-                          style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11),
+                          '• Server 1 (NetMirror VIP): Direct Hindi Dubbed Audio track.\n• Server 2 (VidLink Pro) & Server 3: Clean, uninterrupted 1080p full video.\n• Agar Server 1 par NetMirror ka warning clip aaye, to full movie video ke liye Server 2 ya 3 select karein.',
+                          style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11.5, height: 1.4),
                         ),
                       ),
                     ],

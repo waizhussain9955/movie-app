@@ -322,7 +322,13 @@ class ApiService {
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (2Embed Mirror)',
+            name: 'Server ${list.length + 6} (AutoEmbed VIP - Multi-Audio)',
+            quality: '1080p HD',
+            url: 'https://player.autoembed.cc/embed/tv/$id/$season/$episode',
+          ),
+          StreamServer(
+            id: list.length + 7,
+            name: 'Server ${list.length + 7} (2Embed Mirror)',
             quality: '720p',
             url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
           ),
@@ -403,7 +409,13 @@ class ApiService {
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (2Embed Mirror)',
+            name: 'Server ${list.length + 6} (AutoEmbed VIP - Multi-Audio)',
+            quality: '1080p HD',
+            url: 'https://player.autoembed.cc/embed/movie/$id',
+          ),
+          StreamServer(
+            id: list.length + 7,
+            name: 'Server ${list.length + 7} (2Embed Mirror)',
             quality: '720p',
             url: 'https://www.2embed.cc/embed/$id',
           ),

@@ -59,6 +59,78 @@ class NetMirrorService {
     return _resolvedApiUrl;
   }
 
+  static const List<String> _abuseMarkers = [
+    '220884',
+    'veed',
+    'abuse',
+    'ratelimit',
+    'stop_abuse',
+    'too many requests',
+    'wait few minutes',
+  ];
+
+  static bool _looksAbusive(String text) {
+    final lower = text.toLowerCase();
+    return _abuseMarkers.any(lower.contains);
+  }
+
+  /// Check whether a resolved HLS link is actually the NetMirror
+  /// abuse / rate-limit clip ("STOP — Too Many Requests").
+  /// The audio rendition stays clean, so only a playlist check can catch it.
+  /// Returns true when the stream must be rejected (caller falls back to a
+  /// clean embed server and must NOT cache the flagged URL).
+  static Future<bool> _isAbuseStream(String videoLink, String referer) async {
+    // 1. The link itself sometimes carries the marker.
+    if (_looksAbusive(videoLink)) return true;
+
+    try {
+      // 2. Master playlist. The CDN needs the Referer header here —
+      //    without it the request answers 404 and the check silently passes
+      //    (that is why the old filter, which sent no Referer, never caught
+      //    anything even before it was removed).
+      final masterRes = await http.get(
+        Uri.parse(videoLink),
+        headers: {..._headers, 'Referer': referer},
+      ).timeout(const Duration(seconds: 4));
+      if (masterRes.statusCode != 200) return false;
+      final master = masterRes.body;
+      if (_looksAbusive(master)) return true;
+
+      // 3. Video rendition playlist. The abuse clip usually hides here —
+      //    the master only lists rendition URIs. Check the first (default)
+      //    video level; when the IP is rate-limited every level carries the
+      //    same clip, so one check is representative.
+      final lines = master.split('\n');
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.startsWith('#EXT-X-STREAM-INF')) {
+          var j = i + 1;
+          while (j < lines.length &&
+              (lines[j].trim().isEmpty || lines[j].trim().startsWith('#'))) {
+            j++;
+          }
+          if (j >= lines.length) break;
+          final renditionUri = lines[j].trim();
+          final renditionUrl = renditionUri.startsWith('http')
+              ? renditionUri
+              : Uri.parse(videoLink).resolve(renditionUri).toString();
+          try {
+            final renditionRes = await http.get(
+              Uri.parse(renditionUrl),
+              headers: {..._headers, 'Referer': referer},
+            ).timeout(const Duration(seconds: 4));
+            if (renditionRes.statusCode == 200 &&
+                _looksAbusive(renditionRes.body)) {
+              return true;
+            }
+          } catch (_) {}
+          break;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// Search and resolve direct HLS stream (.m3u8) with Multi-Audio (Hindi, English, etc.)
   static Future<String?> resolveStream(
     String title, {
@@ -241,6 +313,15 @@ class NetMirrorService {
       final referer = playerData['referer']?.toString() ?? 'https://net52.cc';
 
       if (videoLink != null && videoLink.isNotEmpty) {
+        // Abuse filter: reject the rate-limit clip so the player falls back
+        // to a clean embed server. Never cache a flagged stream — the cache
+        // has no expiry, so one bad resolve would poison the whole session.
+        if (await _isAbuseStream(videoLink, referer)) {
+          debugPrint(
+              '⚠️ [NetMirror] Abuse/rate-limit stream detected, falling back to clean embed server');
+          return null;
+        }
+
         final fullStream = '$videoLink#referer=$referer';
         _streamCache[cacheKey] = fullStream;
         debugPrint('🎯 [NetMirror] Found dual-audio HLS stream: $fullStream');

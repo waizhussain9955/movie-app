@@ -297,21 +297,40 @@ class RealDownloadsTab extends StatelessWidget {
 
                     // Action Icon
                     if (item.isCompleted)
-                      IconButton(
-                        icon: const Icon(Icons.play_circle_fill, color: Color(0xFFE50914), size: 36),
-                        tooltip: 'Watch Offline',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PlayerScreen(
-                                movie: movie,
-                                servers: movie.servers,
-                                localFilePath: item.localPath,
-                              ),
-                            ),
-                          );
-                        },
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.play_circle_fill, color: Color(0xFFE50914), size: 36),
+                            tooltip: 'Watch Offline',
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PlayerScreen(
+                                    movie: movie,
+                                    servers: movie.servers,
+                                    localFilePath: item.localPath,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: Color(0xFF7E8695), size: 22),
+                            tooltip: 'Delete Download',
+                            onPressed: () {
+                              DownloadService().removeDownload(movie.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Download removed.'),
+                                  backgroundColor: Color(0xFF131720),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       )
                     else
                       IconButton(

@@ -144,18 +144,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (Platform.isAndroid && controller.platform is AndroidWebViewController) {
       final androidCtrl = controller.platform as AndroidWebViewController;
       androidCtrl.setMediaPlaybackRequiresUserGesture(false);
+      androidCtrl.setAllowFileAccess(true);
+      androidCtrl.setAllowContentAccess(true);
     }
     _webController = controller;
 
     if (_isOfflineMode) {
-      // Offline mode: Load local companion HTML player via loadFile for reliable offline playback
+      // Offline mode: Load local video with full hardware acceleration and native HTML5 controls
       final localFile = File(widget.localFilePath!);
-      final dir = localFile.parent;
-      final fileName = localFile.uri.pathSegments.last;
-      final companion = File('${dir.path}/player_${widget.movie.id}.html');
-
-      if (!companion.existsSync()) {
-        companion.writeAsStringSync('''
+      final fileUri = Uri.file(localFile.path).toString();
+      final offlineHtml = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -164,15 +162,31 @@ class _PlayerScreenState extends State<PlayerScreen> {
   <title>${widget.movie.title} (Offline)</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { margin: 0; background-color: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-    video { width: 100%; height: 100%; max-height: 100vh; object-fit: contain; outline: none; }
+    body {
+      margin: 0;
+      background-color: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      max-height: 100vh;
+      object-fit: contain;
+      outline: none;
+    }
   </style>
 </head>
 <body>
-  <video id="vPlayer" src="$fileName" controls autoplay playsinline controlsList="nodownload"></video>
+  <video id="vPlayer" src="$fileUri" controls autoplay playsinline controlsList="nodownload"></video>
   <script>
-    document.addEventListener("DOMContentLoaded", function() {
-      var v = document.getElementById("vPlayer");
+    window.addEventListener('DOMContentLoaded', function() {
+      var v = document.getElementById('vPlayer');
       if (v) {
         v.play().catch(function(){});
       }
@@ -180,14 +194,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
   </script>
 </body>
 </html>
-''');
-      }
+''';
 
       _webController
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageStarted: (_) {
-              if (mounted) setState(() => _isLoading = true);
+              if (mounted) setState(() => _isLoading = false);
             },
             onPageFinished: (_) {
               if (mounted) {
@@ -197,9 +210,25 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 });
               }
             },
+            onWebResourceError: (_) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                  _hasLoadedSuccessfully = true;
+                });
+              }
+            },
           ),
         )
-        ..loadFile(companion.path);
+        ..loadHtmlString(offlineHtml, baseUrl: fileUri);
+
+      // Failsafe timer so loading overlay NEVER gets stuck
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _isLoading) {
+          setState(() => _isLoading = false);
+        }
+      });
+      return;
     } else {
       // Online mode with ad-blocking and auto-mirror failover
       _setupStreamingController();
@@ -328,6 +357,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
               '4khdhub.one',
               'playdrive.vip',
               'hdstream4u.com',
+              'hubcloud',
+              'inventoryidea.com',
+              'r2.dev',
+              'drive.google.com',
+              'googleusercontent.com',
+              'pixeldrain',
+              'fastcloud',
+              'terabox',
               // MovieBox & Hakuna Matata CDN
               'hakunaymatata.com',
               'movie-box.co',
@@ -339,6 +376,26 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (!isAllowed) {
               debugPrint('🛡️ [AdBlocker] Blocked unverified domain: $url');
               return NavigationDecision.prevent;
+            }
+
+            // Direct video download interceptor
+            if (url.endsWith('.mp4') ||
+                url.endsWith('.mkv') ||
+                url.contains('/dl/?link=') ||
+                (url.contains('.r2.dev') && !url.contains('.html'))) {
+              DownloadService().startDownload(
+                widget.movie,
+                downloadUrl: request.url,
+              );
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    '⬇️ Video download captured for "${widget.movie.title}"! Saving to "Downloads" tab.',
+                  ),
+                  backgroundColor: const Color(0xFFE50914),
+                  duration: const Duration(seconds: 4),
+                ),
+              );
             }
 
             return NavigationDecision.navigate;

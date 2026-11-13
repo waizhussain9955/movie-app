@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
+import '../services/download_service.dart';
 import '../services/netmirror_service.dart';
 import '../services/moviebox_service.dart';
 
@@ -147,26 +148,41 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _webController = controller;
 
     if (_isOfflineMode) {
-      // Offline mode: Load local video HTML5 player
-      final localUri = Uri.file(widget.localFilePath!).toString();
-      final offlineHtml = '''
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-          <style>
-            body { margin: 0; background-color: #000; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-            video { width: 100%; height: 100%; max-height: 100vh; object-fit: contain; }
-          </style>
-        </head>
-        <body>
-          <video controls autoplay playsinline controlsList="nodownload">
-            <source src="$localUri" type="video/mp4">
-            Your device does not support offline video playback.
-          </video>
-        </body>
-        </html>
-      ''';
+      // Offline mode: Load local companion HTML player via loadFile for reliable offline playback
+      final localFile = File(widget.localFilePath!);
+      final dir = localFile.parent;
+      final fileName = localFile.uri.pathSegments.last;
+      final companion = File('${dir.path}/player_${widget.movie.id}.html');
+
+      if (!companion.existsSync()) {
+        companion.writeAsStringSync('''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>${widget.movie.title} (Offline)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { margin: 0; background-color: #000; color: #fff; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    video { width: 100%; height: 100%; max-height: 100vh; object-fit: contain; outline: none; }
+  </style>
+</head>
+<body>
+  <video id="vPlayer" src="$fileName" controls autoplay playsinline controlsList="nodownload"></video>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var v = document.getElementById("vPlayer");
+      if (v) {
+        v.play().catch(function(){});
+      }
+    });
+  </script>
+</body>
+</html>
+''');
+      }
+
       _webController
         ..setNavigationDelegate(
           NavigationDelegate(
@@ -183,7 +199,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             },
           ),
         )
-        ..loadHtmlString(offlineHtml);
+        ..loadFile(companion.path);
     } else {
       // Online mode with ad-blocking and auto-mirror failover
       _setupStreamingController();
@@ -1851,13 +1867,40 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         onPressed: _showVolumeDialog,
                       ),
                       // Server Mirror Switcher Icon
-                      IconButton(
-                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
-                        tooltip: 'Switch Mirror',
-                        onPressed: _showServerSelectionSheet,
-                      ),
+                      if (!_isOfflineMode)
+                        IconButton(
+                          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
+                          tooltip: 'Switch Mirror',
+                          onPressed: _showServerSelectionSheet,
+                        ),
+                      // One-Tap Offline Download Button
+                      if (!_isOfflineMode)
+                        IconButton(
+                          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          icon: const Icon(Icons.file_download_outlined, color: Colors.white, size: 20),
+                          tooltip: 'Download Offline',
+                          onPressed: () {
+                            final currentUrl = _currentServers.isNotEmpty
+                                ? _currentServers[_selectedServerIndex].url
+                                : null;
+                            DownloadService().startDownload(
+                              widget.movie,
+                              downloadUrl: currentUrl,
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '⬇️ Downloading "${widget.movie.title}" for offline watching in app! Track in "My Downloads".',
+                                ),
+                                backgroundColor: const Color(0xFFE50914),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          },
+                        ),
                       // Cinema Mode (Rotate)
                       IconButton(
                         constraints: const BoxConstraints(minWidth: 38, minHeight: 38),

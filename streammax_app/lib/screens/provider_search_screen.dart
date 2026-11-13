@@ -4,6 +4,7 @@ import '../models/movie.dart';
 import '../providers/hdhub4u_provider.dart';
 import '../providers/provider.dart';
 import '../providers/webview_fetcher.dart';
+import '../services/download_service.dart';
 import 'player_screen.dart';
 
 /// Stremio-style provider search: searches the MLSBD & HDHub4u download
@@ -169,43 +170,90 @@ class _ProviderSearchScreenState extends State<ProviderSearchScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2B3244),
-                      borderRadius: BorderRadius.circular(2),
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2B3244),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                Text(
-                  listing.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          listing.title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${listing.providerName}  •  ${listing.audioLabel.isNotEmpty ? listing.audioLabel : 'Dual Audio'}',
-                  style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 12),
-                ),
-                const Divider(color: Color(0xFF202634), height: 20),
-                ...links.map((link) => _buildLinkTile(link, listing)),
-                const SizedBox(height: 8),
-              ],
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE50914).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          listing.providerName,
+                          style: const TextStyle(
+                            color: Color(0xFFE50914),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        listing.audioLabel.isNotEmpty
+                            ? listing.audioLabel
+                            : 'Dual Audio (Hindi Dubbed)',
+                        style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: Color(0xFF202634), height: 20),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ...links.map((link) => _buildLinkTile(link, listing)),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -265,7 +313,121 @@ class _ProviderSearchScreenState extends State<ProviderSearchScreen> {
             ),
           ),
         ),
-        onTap: () => _openLinkInPlayer(link, listing),
+        onTap: () {
+          if (isWatch) {
+            _openLinkInPlayer(link, listing);
+          } else {
+            _showDownloadOptions(link, listing);
+          }
+        },
+      ),
+    );
+  }
+
+  void _showDownloadOptions(ProviderLink link, ProviderListing listing) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF131720),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B3244),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                link.label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                listing.title,
+                style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const Divider(color: Color(0xFF202634), height: 20),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF00E676),
+                  child: Icon(Icons.file_download_rounded, color: Colors.black),
+                ),
+                title: const Text(
+                  'Download to App (Watch Offline)',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Saves to "My Downloads" tab to watch directly inside StreamMax',
+                  style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  Navigator.pop(context); // close parent sheet
+                  final movie = widget.movie ?? _fallbackMovie(listing);
+                  DownloadService().startDownload(
+                    movie,
+                    downloadUrl: link.url,
+                    customTitle: '${listing.title} (${link.label})',
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '⬇️ Downloading "${listing.title}"! Watch offline in "My Downloads" tab.',
+                      ),
+                      backgroundColor: const Color(0xFFE50914),
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFFE50914),
+                  child: Icon(Icons.play_arrow_rounded, color: Colors.white),
+                ),
+                title: const Text(
+                  'Open in Player / Web Stream',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Stream online or open host download page in app browser',
+                  style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11),
+                ),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _openLinkInPlayer(link, listing);
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

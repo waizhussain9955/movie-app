@@ -32,6 +32,9 @@ class MlsbdProvider implements ContentProvider {
   @override
   String get name => 'MLSBD';
 
+  @override
+  Future<String?> Function(String url)? webViewFetch;
+
   static const _base = 'https://mlsbd.co';
 
   static const _headers = <String, String>{

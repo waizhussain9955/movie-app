@@ -36,6 +36,9 @@ class HdHub4uProvider implements ContentProvider {
   @override
   String get name => 'HDHub4u';
 
+  @override
+  Future<String?> Function(String url)? webViewFetch;
+
   static const _base = 'https://hdhubinfo.com';
 
   static const _headers = <String, String>{

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/movie.dart';
+import '../providers/hdhub4u_provider.dart';
 import '../providers/provider.dart';
+import '../providers/webview_fetcher.dart';
 import 'player_screen.dart';
 
 /// Stremio-style provider search: searches the MLSBD & HDHub4u download
@@ -33,9 +35,20 @@ class _ProviderSearchScreenState extends State<ProviderSearchScreen> {
   bool _hasSearched = false;
   String _selectedProvider = 'all'; // 'all' | 'mlsbd' | 'hdhub4u'
 
+  /// Hidden WebView that lets the MLSBD provider fetch past Cloudflare.
+  /// Mounted as a 1x1 box at the bottom of this screen (see build).
+  late final WebViewFetcher _webViewFetcher;
+
   @override
   void initState() {
     super.initState();
+    _webViewFetcher = WebViewFetcher();
+    // MLSBD is behind Cloudflare: plain http.get gets 403, so give the
+    // MLSBD provider the hidden-WebView fetch as a fallback.
+    ProviderRegistry.byId('mlsbd')?.webViewFetch =
+        (url) => _webViewFetcher.fetchHtml(url, siteMarker: 'mlsbd');
+    // Warm the HDHub4u sitemap cache so the first search is fast.
+    HdHub4uProvider.warmUp();
     if (widget.initialQuery != null &&
         widget.initialQuery!.trim().isNotEmpty) {
       _controller.text = widget.initialQuery!;
@@ -74,7 +87,10 @@ class _ProviderSearchScreenState extends State<ProviderSearchScreen> {
         res = provider == null
             ? <ProviderListing>[]
             : await provider.search(q).timeout(
-                  const Duration(seconds: 12),
+                  // 30s: a cold HDHub4u sitemap fetch (~2.3MB) or an
+                  // MLSBD WebView fetch (Cloudflare challenge) can take
+                  // a while on first use; later searches hit the cache.
+                  const Duration(seconds: 30),
                   onTimeout: () => <ProviderListing>[],
                 );
       }
@@ -426,6 +442,10 @@ class _ProviderSearchScreenState extends State<ProviderSearchScreen> {
                             _buildResultCard(_results[idx]),
                       ),
           ),
+
+          // Hidden 1x1 WebView that lets the MLSBD provider fetch past
+          // Cloudflare. The page is never shown.
+          SizedBox(width: 1, height: 1, child: _webViewFetcher.widget),
         ],
       ),
     );

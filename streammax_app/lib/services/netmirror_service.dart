@@ -38,7 +38,7 @@ class NetMirrorService {
         final res = await http.get(
           Uri.parse('$domain/checknewtv.php'),
           headers: _headers,
-        ).timeout(const Duration(seconds: 4));
+        ).timeout(const Duration(seconds: 12));
 
         if (res.statusCode == 200) {
           final data = json.decode(res.body);
@@ -163,7 +163,7 @@ class NetMirrorService {
           final searchRes = await http.get(
             Uri.parse('$api/newtv/search.php?s=${Uri.encodeComponent(cleanTitle)}'),
             headers: {..._headers, 'Ott': ott},
-          ).timeout(const Duration(seconds: 4));
+          ).timeout(const Duration(seconds: 12));
 
           if (searchRes.statusCode == 200) {
             final searchData = json.decode(searchRes.body);
@@ -219,7 +219,7 @@ class NetMirrorService {
       final postRes = await http.get(
         Uri.parse('$api/newtv/post.php?id=$targetShowId'),
         headers: {...ottHeaders, 'Lastep': '', 'Usertoken': ''},
-      ).timeout(const Duration(seconds: 6));
+      ).timeout(const Duration(seconds: 14));
 
       if (postRes.statusCode != 200) return null;
       final postData = json.decode(postRes.body);
@@ -277,7 +277,7 @@ class NetMirrorService {
               final epRes = await http.get(
                 Uri.parse('$api/newtv/episodes.php?id=${Uri.encodeComponent(seasonId)}'),
                 headers: ottHeaders,
-              ).timeout(const Duration(seconds: 8));
+              ).timeout(const Duration(seconds: 14));
 
               if (epRes.statusCode == 200) {
                 final epData = json.decode(epRes.body);
@@ -305,7 +305,7 @@ class NetMirrorService {
       final playerRes = await http.get(
         Uri.parse('$api/newtv/player.php?id=$targetEpisodeId'),
         headers: {...ottHeaders, 'Usertoken': ''},
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 14));
 
       if (playerRes.statusCode != 200) return null;
       final playerData = json.decode(playerRes.body);

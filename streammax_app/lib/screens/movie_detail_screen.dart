@@ -4,6 +4,7 @@ import '../models/movie.dart';
 import '../services/api_service.dart';
 import '../services/download_service.dart';
 import '../services/netmirror_service.dart';
+import '../services/moviebox_service.dart';
 import 'player_screen.dart';
 import 'provider_search_screen.dart';
 
@@ -38,7 +39,8 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     // enough: a title tagged isHindiDubbed must also open in Hindi mode.
     _isHindiAudio = widget.initialHindiAudio ||
         widget.movie.isHindi ||
-        widget.movie.isHindiDubbed;
+        widget.movie.isHindiDubbed ||
+        widget.movie.id == 71446;
     _fetchDetails();
   }
 
@@ -136,7 +138,20 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       } catch (_) {}
     }
 
-    // Resolve NetMirror HLS Stream with timeout of 8 seconds
+    // Resolve MovieBox 100% Real Hindi Dubbed Stream first (Clean MP4 with zero warning clip)
+    String? movieBoxUrl;
+    if (_isHindiAudio || _currentMovie.isHindi || _currentMovie.isHindiDubbed || _currentMovie.id == 71446) {
+      try {
+        movieBoxUrl = await MovieBoxService.getHindiStream(
+          tmdbId: _currentMovie.id,
+          isTv: isTv,
+          season: sNum,
+          episode: epNum,
+        );
+      } catch (_) {}
+    }
+
+    // Resolve NetMirror HLS Stream
     String? netmirrorUrl;
     try {
       netmirrorUrl = await NetMirrorService.resolveStream(
@@ -144,7 +159,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         isTv: isTv,
         season: sNum,
         episode: epNum,
-      ).timeout(const Duration(seconds: 8), onTimeout: () => null);
+      ).timeout(const Duration(seconds: 15), onTimeout: () => null);
     } catch (_) {}
 
     final servers = ApiService.generateServers(
@@ -154,6 +169,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       episode: epNum,
       isHindiAudio: _isHindiAudio,
       netMirrorStreamUrl: netmirrorUrl,
+      movieBoxStreamUrl: movieBoxUrl,
     );
 
     if (mounted) {

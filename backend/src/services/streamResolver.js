@@ -113,24 +113,24 @@ class StreamResolver {
       });
     }
 
-    // 5. Server 5: MultiEmbed / AutoEmbed (Global Failover)
+    // 5. Server 5: MultiEmbed (Global Failover)
     if (type === 'movie') {
       servers.push({
         id: 5,
-        name: 'Server 5 (AutoEmbed Global VIP)',
+        name: 'Server 5 (MultiEmbed Global VIP)',
         type: 'embed',
         quality: '1080p',
-        url: `https://player.autoembed.cc/embed/movie/${id}`,
+        url: `https://multiembed.mov/?video_id=${id}&tmdb=1`,
         status: 'active',
         priority: 5,
       });
     } else {
       servers.push({
         id: 5,
-        name: 'Server 5 (AutoEmbed Global VIP)',
+        name: 'Server 5 (MultiEmbed Global VIP)',
         type: 'embed',
         quality: '1080p',
-        url: `https://player.autoembed.cc/embed/tv/${id}/${season}/${episode}`,
+        url: `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${season}&e=${episode}`,
         status: 'active',
         priority: 5,
       });

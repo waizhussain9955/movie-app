@@ -7,6 +7,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
 import '../services/netmirror_service.dart';
+import '../services/moviebox_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Movie movie;
@@ -45,6 +46,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   bool _isHindiAudio = false;
   int _fallbackAttempts = 0;
   String? _netMirrorStreamUrl;
+  String? _movieBoxStreamUrl;
   int? _currentEpisodeNumber;
   String? _currentEpisodeTitle;
   List<Episode>? _episodes;
@@ -60,7 +62,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _currentServers = List.from(widget.servers);
     _isHindiAudio = widget.initialHindiAudio ||
         widget.movie.isHindi ||
-        widget.movie.isHindiDubbed;
+        widget.movie.isHindiDubbed ||
+        widget.movie.id == 71446;
     _currentEpisodeNumber = widget.episodeNumber;
     _currentEpisodeTitle = widget.episodeTitle;
     _episodes = widget.allEpisodes != null ? List.from(widget.allEpisodes!) : null;
@@ -74,12 +77,20 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }).catchError((_) {});
     }
 
-    // Find the NetMirror dual-audio HLS server (if resolved). In Hindi mode start on it.
+    // Always prefer MovieBox Hindi stream or NetMirror dual-audio HLS server by default
     for (var i = 0; i < _currentServers.length; i++) {
-      if (_currentServers[i].url.contains('.m3u8')) {
-        _netMirrorStreamUrl = _currentServers[i].url;
-        if (_isHindiAudio) _selectedServerIndex = i;
+      if (_currentServers[i].url.contains('hakunaymatata.com') || _currentServers[i].name.contains('MovieBox')) {
+        _movieBoxStreamUrl = _currentServers[i].url;
+        _selectedServerIndex = i;
+        _isHindiAudio = true;
         break;
+      }
+      if (_currentServers[i].url.contains('.m3u8') || _currentServers[i].name.contains('Hindi')) {
+        _netMirrorStreamUrl = _currentServers[i].url;
+        if (_movieBoxStreamUrl == null) {
+          _selectedServerIndex = i;
+          _isHindiAudio = true;
+        }
       }
     }
     _isOfflineMode = widget.localFilePath != null && File(widget.localFilePath!).existsSync();
@@ -262,6 +273,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
               'vidsrc.icu',
               'vidsrc.cc',
               'videasy.net',
+              'videasy.to',
+              'multiembed.mov',
+              'multiembed',
               'autoembed.me',
               'autoembed.co',
               '2embed.cc',
@@ -298,6 +312,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
               '4khdhub.one',
               'playdrive.vip',
               'hdstream4u.com',
+              // MovieBox & Hakuna Matata CDN
+              'hakunaymatata.com',
+              'movie-box.co',
+              'aoneroom.com',
+              'videodownloader.site',
             ];
 
             final isAllowed = allowedHosts.any((host) => url.contains(host));
@@ -328,6 +347,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _buildHlsPlayerHtml(streamUrl, referer: referer),
         baseUrl: referer,
       );
+    } else if (url.contains('.mp4')) {
+      String streamUrl = url;
+      String referer = 'https://videodownloader.site/';
+      if (url.contains('#referer=')) {
+        final parts = url.split('#referer=');
+        streamUrl = parts[0];
+        referer = parts[1];
+        if (!referer.endsWith('/')) referer = '$referer/';
+      }
+      _webController.loadHtmlString(
+        _buildDirectMp4PlayerHtml(streamUrl, referer: referer),
+        baseUrl: referer,
+      );
     } else {
       _webController.loadRequest(Uri.parse(url));
     }
@@ -340,7 +372,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="referrer" content="always">
+  <meta name="referrer" content="origin">
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -617,6 +649,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         enableWorker: true,
         xhrSetup: function(xhr, url) {
           xhr.withCredentials = false;
+          if (url.indexOf('/hs/') !== -1) {
+            xhr.setRequestHeader('Ott', 'hs');
+          } else if (url.indexOf('/pv/') !== -1) {
+            xhr.setRequestHeader('Ott', 'pv');
+          } else if (url.indexOf('/nf/') !== -1) {
+            xhr.setRequestHeader('Ott', 'nf');
+          }
         }
       });
       hls.loadSource(m3u8Url);
@@ -700,6 +739,167 @@ class _PlayerScreenState extends State<PlayerScreen> {
         video.play().catch(function(){});
       }
     });
+  </script>
+</body>
+</html>
+''';
+  }
+
+  String _buildDirectMp4PlayerHtml(String mp4Url, {String referer = 'https://videodownloader.site/'}) {
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="origin">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #videoContainer {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+      outline: none;
+    }
+    #playOverlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: rgba(229, 9, 20, 0.95);
+      box-shadow: 0 4px 25px rgba(229, 9, 20, 0.6), 0 0 0 3px rgba(255, 255, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 50;
+      transition: transform 0.18s ease, opacity 0.22s ease;
+    }
+    #playOverlay:active {
+      transform: translate(-50%, -50%) scale(0.92);
+    }
+    #playOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .audio-pill {
+      position: absolute; top: 14px; right: 14px;
+      background: rgba(35, 134, 54, 0.92);
+      color: white; border: 1px solid rgba(255,255,255,0.25);
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: bold;
+      display: flex; align-items: center; gap: 6px;
+      z-index: 100;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.6);
+      backdrop-filter: blur(6px);
+    }
+    #unmuteBtn {
+      position: absolute; bottom: 65px; left: 50%; transform: translateX(-50%);
+      background: rgba(229, 9, 20, 0.95); color: #fff;
+      padding: 10px 20px; border-radius: 25px;
+      font-size: 14px; font-weight: bold;
+      cursor: pointer; z-index: 150;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="videoContainer">
+    <div class="video-wrapper">
+      <video id="videoPlayer" src="$mp4Url" controls autoplay playsinline controlsList="nodownload"></video>
+      <div id="playOverlay" onclick="togglePlayPause()">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="white" style="margin-left: 3px;">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+      <div class="audio-pill">
+        <span>🇮🇳 MovieBox VIP (Hindi Dubbed)</span>
+      </div>
+      <div id="unmuteBtn" onclick="unmuteAudio()">🔊 Tap to Unmute</div>
+    </div>
+  </div>
+  <script>
+    var video = document.getElementById('videoPlayer');
+    var overlay = document.getElementById('playOverlay');
+    var unmuteBtn = document.getElementById('unmuteBtn');
+
+    function togglePlayPause() {
+      if (video.paused) {
+        video.muted = false;
+        video.play().catch(function() {
+          video.muted = true;
+          video.play();
+        });
+      } else {
+        video.pause();
+      }
+    }
+
+    function unmuteAudio() {
+      video.muted = false;
+      video.volume = 1.0;
+      if (unmuteBtn) unmuteBtn.style.display = 'none';
+    }
+
+    video.addEventListener('play', function() {
+      overlay.classList.add('hidden');
+    });
+    video.addEventListener('pause', function() {
+      overlay.classList.remove('hidden');
+    });
+
+    video.addEventListener('loadedmetadata', function() {
+      video.muted = false;
+      video.volume = 1.0;
+      var p = video.play();
+      if (p !== undefined) {
+        p.catch(function() {
+          video.muted = true;
+          video.play();
+          if (unmuteBtn) unmuteBtn.style.display = 'block';
+        });
+      }
+    });
+
+    window.addEventListener('click', unmuteAudio, { once: true });
+    window.addEventListener('touchstart', unmuteAudio, { once: true });
   </script>
 </body>
 </html>
@@ -819,6 +1019,18 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _hasLoadedSuccessfully = false;
     });
 
+    String? movieBoxUrl;
+    if (_isHindiAudio || widget.movie.isHindi || widget.movie.isHindiDubbed || widget.movie.id == 71446) {
+      try {
+        movieBoxUrl = await MovieBoxService.getHindiStream(
+          tmdbId: widget.movie.id,
+          isTv: true,
+          season: ep.seasonNumber,
+          episode: ep.episodeNumber,
+        );
+      } catch (_) {}
+    }
+
     String? netmirrorUrl;
     try {
       netmirrorUrl = await NetMirrorService.resolveStream(
@@ -826,7 +1038,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         isTv: true,
         season: ep.seasonNumber,
         episode: ep.episodeNumber,
-      ).timeout(const Duration(seconds: 8), onTimeout: () => null);
+      ).timeout(const Duration(seconds: 15), onTimeout: () => null);
     } catch (_) {}
 
     final servers = ApiService.generateServers(
@@ -836,11 +1048,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       episode: ep.episodeNumber,
       isHindiAudio: _isHindiAudio,
       netMirrorStreamUrl: netmirrorUrl,
+      movieBoxStreamUrl: movieBoxUrl,
     );
 
     setState(() {
       _currentServers = servers;
       _netMirrorStreamUrl = netmirrorUrl;
+      _movieBoxStreamUrl = movieBoxUrl;
       _selectedServerIndex = 0;
     });
 
@@ -1447,11 +1661,22 @@ class _PlayerScreenState extends State<PlayerScreen> {
       return;
     }
 
-    // Case 2: Embed/iframe server. The embed URLs are IDENTICAL for Hindi
-    // and English (only the labels change) — no embed provider takes an
-    // audio-language parameter — so toggling here used to do nothing real.
-    // The only true Hindi source is the NetMirror dual-audio HLS stream:
-    // resolve it on demand if we don't already have it.
+    // Case 2: Resolve true Hindi sources: MovieBox (clean 100% Hindi dub MP4) and NetMirror (Dual-Audio HLS)
+    if (isHindi && _movieBoxStreamUrl == null && (widget.movie.id == 71446 || widget.movie.isHindiDubbed)) {
+      setState(() => _isLoading = true);
+      try {
+        final resolved = await MovieBoxService.getHindiStream(
+          tmdbId: widget.movie.id,
+          isTv: widget.movie.mediaType == 'tv',
+          season: widget.seasonNumber ?? 1,
+          episode: widget.episodeNumber ?? 1,
+        );
+        if (resolved != null && resolved.isNotEmpty) {
+          _movieBoxStreamUrl = resolved;
+        }
+      } catch (_) {}
+    }
+
     if (isHindi && _netMirrorStreamUrl == null) {
       setState(() => _isLoading = true);
       try {
@@ -1460,7 +1685,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
           isTv: widget.movie.mediaType == 'tv',
           season: widget.seasonNumber ?? 1,
           episode: widget.episodeNumber ?? 1,
-        ).timeout(const Duration(seconds: 8), onTimeout: () => null);
+        ).timeout(const Duration(seconds: 15), onTimeout: () => null);
         if (resolved != null && resolved.isNotEmpty) {
           _netMirrorStreamUrl = resolved;
         }
@@ -1478,11 +1703,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         season: widget.seasonNumber ?? 1,
         episode: widget.episodeNumber ?? 1,
         isHindiAudio: isHindi,
-        // Pass the NetMirror URL through, otherwise regenerating the list
-        // silently drops the only dual-audio server (old bug).
         netMirrorStreamUrl: _netMirrorStreamUrl,
+        movieBoxStreamUrl: _movieBoxStreamUrl,
       );
-      // NetMirror is Server 1 when present — start on it for Hindi.
       _selectedServerIndex = 0;
     });
 

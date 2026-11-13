@@ -174,6 +174,18 @@ class ApiService {
           servers: generateServers(d['id'] ?? id, isTv: true, season: 1, episode: 1),
         );
 
+        // Money Heist (71446): TMDB lists only 3 broadcast parts. Override with full 5 Netflix seasons!
+        if (id == 71446) {
+          final fullMoneyHeistSeasons = [
+            Season(id: 714461, seasonNumber: 1, name: 'Season 1', episodeCount: 13),
+            Season(id: 714462, seasonNumber: 2, name: 'Season 2', episodeCount: 9),
+            Season(id: 714463, seasonNumber: 3, name: 'Season 3', episodeCount: 8),
+            Season(id: 714464, seasonNumber: 4, name: 'Season 4', episodeCount: 8),
+            Season(id: 714465, seasonNumber: 5, name: 'Season 5', episodeCount: 10),
+          ];
+          return {'movie': movie, 'seasons': fullMoneyHeistSeasons};
+        }
+
         return {'movie': movie, 'seasons': seasons};
       }
     } catch (_) {}
@@ -193,6 +205,51 @@ class ApiService {
 
   /// Get Episodes for a TV Season
   static Future<List<Episode>> getSeasonEpisodes(int tvId, int seasonNumber) async {
+    // Money Heist (71446): Netflix 5 Seasons episode structure
+    if (tvId == 71446) {
+      final counts = {1: 13, 2: 9, 3: 8, 4: 8, 5: 10};
+      final total = counts[seasonNumber] ?? 8;
+      try {
+        final res = await http.get(
+          Uri.parse('$tmdbFallbackUrl/tv/$tvId/season/$seasonNumber?api_key=$tmdbApiKey'),
+        ).timeout(const Duration(seconds: 5));
+
+        if (res.statusCode == 200) {
+          final d = json.decode(res.body);
+          final rawEpisodes = d['episodes'] as List? ?? [];
+          if (rawEpisodes.isNotEmpty) {
+            final list = rawEpisodes.map((e) => Episode.fromJson(e as Map<String, dynamic>, seasonNumber)).toList();
+            if (list.length < total) {
+              for (int i = list.length + 1; i <= total; i++) {
+                list.add(Episode(
+                  id: 7144600 + seasonNumber * 100 + i,
+                  name: 'Episode $i',
+                  episodeNumber: i,
+                  seasonNumber: seasonNumber,
+                  overview: 'Money Heist Season $seasonNumber Episode $i (Hindi Dubbed)',
+                  stillUrl: list.isNotEmpty ? list.first.stillUrl : null,
+                ));
+              }
+            }
+            return list;
+          }
+        }
+      } catch (_) {}
+
+      // Fallback generator for Seasons 4 & 5 or offline/failed TMDB
+      return List.generate(total, (i) {
+        final epNum = i + 1;
+        return Episode(
+          id: 7144600 + seasonNumber * 100 + epNum,
+          name: 'Episode $epNum',
+          episodeNumber: epNum,
+          seasonNumber: seasonNumber,
+          overview: 'Money Heist Season $seasonNumber Episode $epNum (Hindi Dubbed)',
+          stillUrl: null,
+        );
+      });
+    }
+
     try {
       final res = await http.get(
         Uri.parse('$tmdbFallbackUrl/tv/$tvId/season/$seasonNumber?api_key=$tmdbApiKey'),
@@ -272,15 +329,28 @@ class ApiService {
     String? imdbId,
     bool isHindiAudio = false,
     String? netMirrorStreamUrl,
+    String? movieBoxStreamUrl,
   }) {
     final List<StreamServer> list = [];
 
-    // If direct NetMirror multi-audio HLS stream is resolved, place it at Server 1!
+    // 1. MovieBox Official Hindi Dubbed (Clean direct MP4, Zero Warning Clip)
+    if (movieBoxStreamUrl != null && movieBoxStreamUrl.isNotEmpty) {
+      list.add(
+        StreamServer(
+          id: list.length + 1,
+          name: 'Server ${list.length + 1} (MovieBox VIP - 🇮🇳 100% Real Hindi Dub)',
+          quality: '720p / 1080p HD',
+          url: movieBoxStreamUrl,
+        ),
+      );
+    }
+
+    // 2. NetMirror Multi-Audio HLS stream
     if (netMirrorStreamUrl != null && netMirrorStreamUrl.isNotEmpty) {
       list.add(
         StreamServer(
-          id: 1,
-          name: 'Server 1 (NetMirror VIP - 🇮🇳 Dual Audio / Hindi Dubbed)',
+          id: list.length + 1,
+          name: 'Server ${list.length + 1} (NetMirror VIP - 🇮🇳 Dual Audio HLS)',
           quality: '1080p HD',
           url: netMirrorStreamUrl,
         ),
@@ -322,9 +392,9 @@ class ApiService {
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (AutoEmbed VIP - Multi-Audio)',
+            name: 'Server ${list.length + 6} (MultiEmbed VIP - Multi-Audio)',
             quality: '1080p HD',
-            url: 'https://player.autoembed.cc/embed/tv/$id/$season/$episode',
+            url: 'https://multiembed.mov/?video_id=$id&tmdb=1&s=$season&e=$episode',
           ),
           StreamServer(
             id: list.length + 7,
@@ -409,9 +479,9 @@ class ApiService {
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (AutoEmbed VIP - Multi-Audio)',
+            name: 'Server ${list.length + 6} (MultiEmbed VIP - Multi-Audio)',
             quality: '1080p HD',
-            url: 'https://player.autoembed.cc/embed/movie/$id',
+            url: 'https://multiembed.mov/?video_id=$id&tmdb=1',
           ),
           StreamServer(
             id: list.length + 7,

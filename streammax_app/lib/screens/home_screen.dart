@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
 import 'movie_detail_screen.dart';
+import 'provider_search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -349,6 +350,84 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              ),
+
+            // ── 2b. Provider system entry point (Dual Audio Downloads) ──
+            // Opens the Stremio-style provider search (MLSBD / HDHub4u).
+            // Additive only — no existing widget or behaviour changed.
+            if (_selectedCategory == 'All')
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+                  child: InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ProviderSearchScreen(),
+                      ),
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF131720),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: const Color(0xFF00C853).withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00C853)
+                                  .withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.download_rounded,
+                              color: Color(0xFF00E676),
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Dual Audio Downloads',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Hindi dubbed movies & series from MLSBD & HDHub4u',
+                                  style: TextStyle(
+                                    color: Color(0xFF9EA3AE),
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            color: Color(0xFF00E676),
+                            size: 16,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

@@ -287,6 +287,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
               'freecdn',
               'subscdn.top',
               'jsdelivr.net',
+              // Provider system (MLSBD + HDHub4u) — added 2026-11-14:
+              // provider watch/download pages open in this same WebView.
+              'mlsbd.co',
+              'savelinks.me',
+              'hdhubinfo.com',
+              'hubcdn.club',
+              'hubdrive.blog',
+              'hblinks.lol',
+              '4khdhub.one',
+              'playdrive.vip',
+              'hdstream4u.com',
             ];
 
             final isAllowed = allowedHosts.any((host) => url.contains(host));

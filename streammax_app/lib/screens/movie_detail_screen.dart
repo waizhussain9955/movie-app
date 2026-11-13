@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/download_service.dart';
 import '../services/netmirror_service.dart';
 import 'player_screen.dart';
+import 'provider_search_screen.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   final Movie movie;
@@ -506,6 +507,49 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Providers entry point — dual-audio listings (MLSBD / HDHub4u).
+                    // Opens ProviderSearchScreen pre-filled with this title.
+                    // Existing Play / Download buttons and _launchPlayer untouched.
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(
+                          Icons.storage_rounded,
+                          color: Color(0xFF00E676),
+                          size: 20,
+                        ),
+                        label: const Text(
+                          'Providers — Dual Audio Downloads',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: Color(0xFF00C853),
+                            width: 1.2,
+                          ),
+                          backgroundColor: const Color(0xFF131720),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ProviderSearchScreen(
+                              initialQuery: _currentMovie.title,
+                              movie: _currentMovie,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 22),
 

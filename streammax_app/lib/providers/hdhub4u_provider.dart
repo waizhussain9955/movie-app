@@ -100,14 +100,27 @@ class HdHub4uProvider implements ContentProvider {
   /// Reads the sitemap list from the index (do NOT hardcode 1/2/3),
   /// downloads every post sitemap in parallel and returns all <loc> URLs.
   static Future<List<String>> _fetchPostUrls() async {
-    final indexRes = await http
-        .get(Uri.parse(_sitemapIndex), headers: _headers)
-        .timeout(const Duration(seconds: 15));
-    if (indexRes.statusCode != 200) return <String>[];
-    final sitemapUrls = RegExp(
-      r'<loc>(https://hdhubinfo\.com/sitemap-posts[^<]*\.xml)</loc>',
-    ).allMatches(indexRes.body).map((m) => m.group(1)!).toList();
-    if (sitemapUrls.isEmpty) return <String>[];
+    List<String> sitemapUrls = [];
+    try {
+      final indexRes = await http
+          .get(Uri.parse(_sitemapIndex), headers: _headers)
+          .timeout(const Duration(seconds: 15));
+      if (indexRes.statusCode == 200) {
+        sitemapUrls = RegExp(
+          r'<loc>(https://hdhubinfo\.com/sitemap-posts[^<]*\.xml)</loc>',
+        ).allMatches(indexRes.body).map((m) => m.group(1)!).toList();
+      }
+    } catch (_) {}
+
+    // Fallback if sitemap index timed out or failed
+    if (sitemapUrls.isEmpty) {
+      sitemapUrls = [
+        'https://hdhubinfo.com/sitemap-posts-1.xml',
+        'https://hdhubinfo.com/sitemap-posts-2.xml',
+        'https://hdhubinfo.com/sitemap-posts-3.xml',
+      ];
+    }
+
     final bodies = await Future.wait(
       sitemapUrls.map((u) => http
           .get(Uri.parse(u), headers: _headers)
@@ -149,13 +162,15 @@ class HdHub4uProvider implements ContentProvider {
   }
 
   /// Matches ALL query words against each post slug (hyphens = spaces)
-  /// and builds a listing from the slug. Caps at 30 results.
+  /// and builds a listing from the slug. Caps at 50 results.
   List<ProviderListing> _searchSlugs(List<String> urls, List<String> words) {
     final results = <ProviderListing>[];
     for (final url in urls) {
       final uri = Uri.tryParse(url);
-      if (uri == null || uri.pathSegments.isEmpty) continue;
-      final slug = uri.pathSegments.last;
+      if (uri == null) continue;
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments.isEmpty) continue;
+      final slug = segments.last;
       final hay = slug.toLowerCase().replaceAll('-', ' ');
       if (!words.every((w) => hay.contains(w))) continue;
       results.add(ProviderListing.fromSlug(
@@ -164,7 +179,7 @@ class HdHub4uProvider implements ContentProvider {
         providerId: id,
         providerName: name,
       ));
-      if (results.length >= 30) break;
+      if (results.length >= 50) break;
     }
     return results;
   }

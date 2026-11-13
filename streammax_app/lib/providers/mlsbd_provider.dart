@@ -91,8 +91,10 @@ class MlsbdProvider implements ContentProvider {
       final href =
           rawHref.startsWith('http') ? rawHref : '$_base$rawHref';
       final text = stripHtmlTags(m.group(2)!);
-      if (text.isEmpty) continue;
-      if (!RegExp(r'\(\d{4}').hasMatch(text)) continue;
+      if (text.isEmpty || text.length < 5) continue;
+      if (href.endsWith('/category/') || href.contains('/tag/') || href.contains('/page/')) {
+        continue;
+      }
       final lower = text.toLowerCase();
       if (!lower.contains('dual audio') && !lower.contains('hindi')) {
         continue;

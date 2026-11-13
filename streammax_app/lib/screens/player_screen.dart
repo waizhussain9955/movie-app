@@ -1518,122 +1518,144 @@ class _PlayerScreenState extends State<PlayerScreen> {
   void _showServerSelectionSheet() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: const Color(0xFF131720),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2B3244),
-                      borderRadius: BorderRadius.circular(2),
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+          ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2B3244),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                ),
-                Row(
-                  children: [
-                    const Icon(Icons.dns_rounded, color: Color(0xFFE50914), size: 22),
-                    const SizedBox(width: 10),
-                    const Text(
-                      'Choose Streaming Mirror',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-                const Divider(color: Color(0xFF202634), height: 16),
-                const SizedBox(height: 4),
-                ..._currentServers.asMap().entries.map((entry) {
-                  final idx = entry.key;
-                  final s = entry.value;
-                  final isSelected = idx == _selectedServerIndex;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFFE50914).withValues(alpha: 0.15) : const Color(0xFF1A1F2C),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFFE50914) : const Color(0xFF202634),
-                      ),
-                    ),
-                    child: ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 12,
-                        backgroundColor: isSelected ? const Color(0xFFE50914) : const Color(0xFF2B3244),
-                        child: Text(
-                          '${idx + 1}',
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : const Color(0xFF9EA3AE),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        s.name,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : const Color(0xFFD0D4DC),
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                          fontSize: 13,
-                        ),
-                      ),
-                      subtitle: Text(
-                        'Quality: ${s.quality}',
-                        style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5),
-                      ),
-                      trailing: isSelected
-                          ? const Icon(Icons.check_circle_rounded, color: Color(0xFFE50914), size: 18)
-                          : null,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _switchServer(idx);
-                      },
-                    ),
-                  );
-                }),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1F2C),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFF2B3244)),
-                  ),
-                  child: const Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
                     children: [
-                      Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          '• Server 1 (NetMirror VIP): Direct Hindi Dubbed Audio track.\n• Server 2 (VidLink Pro) & Server 3: Clean, uninterrupted 1080p full video.\n• Agar Server 1 par NetMirror ka warning clip aaye, to full movie video ke liye Server 2 ya 3 select karein.',
-                          style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 11.5, height: 1.4),
+                      const Icon(Icons.dns_rounded, color: Color(0xFFE50914), size: 22),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Choose Streaming Mirror',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
                         ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(0xFF9EA3AE), size: 20),
+                        onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const Divider(color: Color(0xFF202634), height: 16),
+                  const SizedBox(height: 4),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ..._currentServers.asMap().entries.map((entry) {
+                            final idx = entry.key;
+                            final s = entry.value;
+                            final isSelected = idx == _selectedServerIndex;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? const Color(0xFFE50914).withValues(alpha: 0.15)
+                                    : const Color(0xFF1A1F2C),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSelected ? const Color(0xFFE50914) : const Color(0xFF202634),
+                                ),
+                              ),
+                              child: ListTile(
+                                dense: true,
+                                leading: CircleAvatar(
+                                  radius: 12,
+                                  backgroundColor:
+                                      isSelected ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                  child: Text(
+                                    '${idx + 1}',
+                                    style: TextStyle(
+                                      color: isSelected ? Colors.white : const Color(0xFF9EA3AE),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                title: Text(
+                                  s.name,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : const Color(0xFFD0D4DC),
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Quality: ${s.quality}',
+                                  style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 10.5),
+                                ),
+                                trailing: isSelected
+                                    ? const Icon(Icons.check_circle_rounded,
+                                        color: Color(0xFFE50914), size: 18)
+                                    : null,
+                                onTap: () {
+                                  Navigator.pop(ctx);
+                                  _switchServer(idx);
+                                },
+                              ),
+                            );
+                          }),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A1F2C),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF2B3244)),
+                            ),
+                            child: const Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '• Server 1 (NetMirror VIP): Direct Hindi Dubbed Audio track.\n• Server 2 (VidLink Pro) & Server 3: Clean, uninterrupted 1080p full video.\n• Agar Server 1 par NetMirror ka warning clip aaye, to full movie video ke liye Server 2 ya 3 select karein.',
+                                    style: TextStyle(
+                                        color: Color(0xFF9EA3AE), fontSize: 11.5, height: 1.4),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );

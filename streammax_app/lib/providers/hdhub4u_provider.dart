@@ -6,20 +6,19 @@ import 'provider.dart';
 /// 2026 catalog) with a rich Hindi dual-audio catalogue (Hindi Dubbed
 /// Movies, South Hindi Dubbed, Dual Audio Packs categories).
 ///
-/// Search page format (verified 2026-11-14 via curl):
-///   https://hdhubinfo.com/?s=avengers  -> HTTP 200, ~89KB
-///   BUT the site IGNORES the ?s= query and always returns the same
-///   Latest Releases list as the homepage. So [search] fetches that list
-///   and filters it CLIENT-SIDE (see below).
-///
-/// The list is available twice in the HTML:
-///   1. JSON-LD ItemList: {"@type":"ListItem","position":3,
-///      "url":"https://hdhubinfo.com/avengers-endgame-encore-2026-imax-webrip-hindi-full-movie/",
-///      "name":"Avengers Endgame: Encore (2026) iMAX WEB-DL [Hindi (DD5.1)
-///      & English] 4K 1080p 720p & 480p Dual Audio [x264/10Bit-HEVC] |
-///      Full Movie"}  (10 items — primary parse target)
-///   2. Listing anchors: <a href="/avengers-endgame-encore-2026-imax-webrip-hindi-full-movie/"
-///      aria-label="Avengers Endgame: Encore (2026) iMAX WEB-DL ..."> (fallback)
+/// v2 SEARCH (sitemap): hdhubinfo.com/?s=<query> IGNORES the query and
+/// always returns the same Latest Releases list (~10 items), so the v1
+/// provider could never find old titles (Game of Thrones returned []).
+/// The site DOES publish a sitemap index (verified 2026-11-14 via curl):
+///   https://hdhubinfo.com/sitemap.xml
+///     -> sitemap-posts-1.xml (5,002 URLs) + sitemap-posts-2.xml (5,000)
+///        + sitemap-posts-3.xml (4,396) = ~14,400 post URLs, ~2.3MB.
+/// [search] now matches the query against those post-URL slugs
+/// (client-side) and builds listings from the slugs. The sitemap list is
+/// cached in memory for 60 minutes and one in-flight fetch is shared by
+/// concurrent searches, so the ~2.3MB is never downloaded twice at once.
+/// If the sitemap fetch fails, search falls back to the old ?s= + JSON-LD
+/// Latest list path.
 ///
 /// Post page DOWNLOAD LINKS (verified 2026-11-14 via curl):
 ///   <a ... href="https://hubcdn.club/file/...">480p⚡[730MB]</a>
@@ -59,8 +58,119 @@ class HdHub4uProvider implements ContentProvider {
     'hdstream4u.com',
   ];
 
+  /// Sitemap index (verified 2026-11-14): lists sitemap-posts-1/2/3.xml
+  /// (~14,400 post URLs) + sitemap-categories.xml.
+  static const _sitemapIndex = 'https://hdhubinfo.com/sitemap.xml';
+
+  /// In-memory cache of all post URLs from the sitemaps, 60-minute TTL.
+  /// One in-flight fetch is shared by concurrent searches.
+  static List<String>? _cachedPostUrls;
+  static DateTime? _cacheFetchedAt;
+  static Future<List<String>>? _inFlightFetch;
+  static const _cacheTtl = Duration(minutes: 60);
+
+  /// Warms the sitemap cache in the background (fire-and-forget). Call it
+  /// when the provider screen opens so the first search usually hits a
+  /// warm cache instead of downloading ~2.3MB of sitemaps on demand.
+  static void warmUp() {
+    _getPostUrls().catchError((_) => <String>[]);
+  }
+
+  static Future<List<String>> _getPostUrls() async {
+    final now = DateTime.now();
+    if (_cachedPostUrls != null &&
+        _cacheFetchedAt != null &&
+        now.difference(_cacheFetchedAt!) < _cacheTtl) {
+      return _cachedPostUrls!;
+    }
+    _inFlightFetch ??= _fetchPostUrls();
+    try {
+      final urls = await _inFlightFetch!;
+      _cachedPostUrls = urls;
+      _cacheFetchedAt = DateTime.now();
+      return urls;
+    } finally {
+      _inFlightFetch = null;
+    }
+  }
+
+  /// Reads the sitemap list from the index (do NOT hardcode 1/2/3),
+  /// downloads every post sitemap in parallel and returns all <loc> URLs.
+  static Future<List<String>> _fetchPostUrls() async {
+    final indexRes = await http
+        .get(Uri.parse(_sitemapIndex), headers: _headers)
+        .timeout(const Duration(seconds: 15));
+    if (indexRes.statusCode != 200) return <String>[];
+    final sitemapUrls = RegExp(
+      r'<loc>(https://hdhubinfo\.com/sitemap-posts[^<]*\.xml)</loc>',
+    ).allMatches(indexRes.body).map((m) => m.group(1)!).toList();
+    if (sitemapUrls.isEmpty) return <String>[];
+    final bodies = await Future.wait(
+      sitemapUrls.map((u) => http
+          .get(Uri.parse(u), headers: _headers)
+          .timeout(const Duration(seconds: 20))
+          .then((r) => r.statusCode == 200 ? r.body : '')
+          .catchError((_) => '')),
+    );
+    final urls = <String>{};
+    final locRe = RegExp(r'<loc>(https://hdhubinfo\.com/[^<]+)</loc>');
+    for (final body in bodies) {
+      for (final m in locRe.allMatches(body)) {
+        urls.add(m.group(1)!);
+      }
+    }
+    return urls.toList();
+  }
+
   @override
   Future<List<ProviderListing>> search(String query) async {
+    final words = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return [];
+    // Primary path: match the query against every post-URL slug in the
+    // sitemap. This finds old titles (e.g. Game of Thrones) that the
+    // Latest Releases list never shows.
+    try {
+      final urls = await _getPostUrls().timeout(const Duration(seconds: 45));
+      if (urls.isNotEmpty) {
+        final results = _searchSlugs(urls, words);
+        if (results.isNotEmpty) return results;
+        // No sitemap hit — fall through to the legacy Latest list, which
+        // can still catch a brand-new post the sitemap does not list yet.
+      }
+    } catch (_) {}
+    return _searchLegacy(query);
+  }
+
+  /// Matches ALL query words against each post slug (hyphens = spaces)
+  /// and builds a listing from the slug. Caps at 30 results.
+  List<ProviderListing> _searchSlugs(List<String> urls, List<String> words) {
+    final results = <ProviderListing>[];
+    for (final url in urls) {
+      final uri = Uri.tryParse(url);
+      if (uri == null || uri.pathSegments.isEmpty) continue;
+      final slug = uri.pathSegments.last;
+      final hay = slug.toLowerCase().replaceAll('-', ' ');
+      if (!words.every((w) => hay.contains(w))) continue;
+      results.add(ProviderListing.fromSlug(
+        slug: slug,
+        postUrl: url,
+        providerId: id,
+        providerName: name,
+      ));
+      if (results.length >= 30) break;
+    }
+    return results;
+  }
+
+  /// Legacy path (v1): the ?s= page ignores the query and returns the
+  /// Latest Releases list; parse it (JSON-LD ItemList, aria-label
+  /// anchors as fallback) and filter client-side. Only used when the
+  /// sitemap fetch fails or finds nothing.
+  Future<List<ProviderListing>> _searchLegacy(String query) async {
     try {
       final url =
           Uri.parse('$_base/?s=${Uri.encodeQueryComponent(query.trim())}');
@@ -69,8 +179,6 @@ class HdHub4uProvider implements ContentProvider {
           .timeout(const Duration(seconds: 10));
       if (res.statusCode != 200) return [];
       final all = _parseSearchPage(res.body);
-      // The site ignores ?s=, so filter the Latest Releases list here:
-      // keep only titles containing ALL query words (case-insensitive).
       final words = query
           .toLowerCase()
           .split(RegExp(r'\s+'))

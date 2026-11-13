@@ -15,15 +15,16 @@ import 'provider.dart';
 ///
 /// Post pages route ALL download links through savelinks.me.
 ///
-/// KNOWN LIMIT (verified from this VM, 2026-11-14): mlsbd.co sits behind a
-/// Cloudflare "Just a moment..." managed challenge. Plain HTTP clients
-/// (curl, and therefore http.get from the app) get HTTP 403 with the
-/// challenge page, while a real browser passes it. So [search] may return []
-/// on networks where Cloudflare challenges the app's requests — the parser
-/// below is written against the verified title format and standard
-/// WordPress anchor markup, but it has NOT been run against live MLSBD HTML
-/// from this VM. If MLSBD stays blocked, open the post URL in the WebView
-/// player instead (it runs a real browser engine and can pass the check).
+/// v2: mlsbd.co sits behind a Cloudflare "Just a moment..." managed
+/// challenge. Plain HTTP clients (curl, and therefore http.get from the
+/// app) get HTTP 403 with the challenge page (re-confirmed from this VM,
+/// 2026-11-14), while a real browser passes it. So [search] and
+/// [fetchLinks] try http.get FIRST (fast path) and, on any non-200 /
+/// error, fall back to the hidden WebView when the UI has provided one
+/// via [ContentProvider.webViewFetch]. The parser below is written
+/// against the verified title format and standard WordPress anchor
+/// markup. If the WebView fetch also fails, search returns [] and
+/// fetchLinks returns the "Open post page" fallback as before.
 class MlsbdProvider implements ContentProvider {
   @override
   String get id => 'mlsbd';
@@ -41,19 +42,34 @@ class MlsbdProvider implements ContentProvider {
     'Accept-Language': 'en-US,en;q=0.9',
   };
 
+  /// Fetches a page: plain http.get first (fast path), and if that fails
+  /// (Cloudflare 403 / network error) falls back to the hidden WebView
+  /// when the UI has provided one. Returns null when both fail.
+  Future<String?> _fetchHtml(String url) async {
+    try {
+      final res = await http
+          .get(Uri.parse(url), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) return res.body;
+    } catch (_) {}
+    final viaWebView = webViewFetch;
+    if (viaWebView != null) {
+      try {
+        return await viaWebView(url);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   @override
   Future<List<ProviderListing>> search(String query) async {
-    try {
-      final url =
-          Uri.parse('$_base/?s=${Uri.encodeQueryComponent(query.trim())}');
-      final res = await http
-          .get(url, headers: _headers)
-          .timeout(const Duration(seconds: 10));
-      if (res.statusCode != 200) return [];
-      return _parseSearchPage(res.body);
-    } catch (_) {
-      return [];
-    }
+    final url =
+        '$_base/?s=${Uri.encodeQueryComponent(query.trim())}';
+    final html = await _fetchHtml(url);
+    if (html == null) return [];
+    return _parseSearchPage(html);
   }
 
   /// Post titles sit in headings that link to the post page. Keep only
@@ -92,16 +108,10 @@ class MlsbdProvider implements ContentProvider {
 
   @override
   Future<List<ProviderLink>> fetchLinks(ProviderListing listing) async {
-    try {
-      final res = await http
-          .get(Uri.parse(listing.postUrl), headers: _headers)
-          .timeout(const Duration(seconds: 10));
-      if (res.statusCode != 200) return _fallback(listing);
-      final links = _parsePostPage(res.body);
-      return links.isEmpty ? _fallback(listing) : links;
-    } catch (_) {
-      return _fallback(listing);
-    }
+    final html = await _fetchHtml(listing.postUrl);
+    if (html == null) return _fallback(listing);
+    final links = _parsePostPage(html);
+    return links.isEmpty ? _fallback(listing) : links;
   }
 
   /// Download links go through savelinks.me; "Watch Online" buttons are

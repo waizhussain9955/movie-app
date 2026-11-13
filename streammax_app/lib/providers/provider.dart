@@ -44,7 +44,16 @@ class ProviderListing {
     final clean = decodeHtmlEntities(title).trim();
 
     final yearMatch = RegExp(r'\((\d{4})').firstMatch(clean);
-    final year = yearMatch?.group(1) ?? '';
+    String year = yearMatch?.group(1) ?? '';
+    if (year.isEmpty) {
+      // Bare-year fallback for slug-derived titles, e.g.
+      // "Spider Man Far From Home 2019 Bluray ..." (no parens).
+      final bare = RegExp(r'\b(19|20)\d{2}\b').firstMatch(clean);
+      if (bare != null) {
+        final y = int.tryParse(bare.group(0)!);
+        if (y != null && y >= 1900 && y <= 2026) year = bare.group(0)!;
+      }
+    }
 
     final qualities = <String>[];
     for (final m in RegExp(r'\b(480p|720p|1080p|2160p|4K)\b', caseSensitive: false)
@@ -97,6 +106,29 @@ class ProviderListing {
       mediaKind: mediaKind,
     );
   }
+
+  /// Builds a listing from a URL slug such as
+  /// "game-of-thrones-season-8-hindi-bluray-all-episodes".
+  /// The slug carries no post-page title, so the display title is derived
+  /// from it (hyphens -> spaces, title case) and the same parsing as
+  /// [fromTitle] extracts year / audio / qualities / media kind.
+  factory ProviderListing.fromSlug({
+    required String slug,
+    required String postUrl,
+    required String providerId,
+    required String providerName,
+  }) {
+    final words = slug.split('-').where((w) => w.isNotEmpty).map((w) {
+      if (w.length <= 1) return w.toUpperCase();
+      return w[0].toUpperCase() + w.substring(1);
+    }).toList();
+    return ProviderListing.fromTitle(
+      title: words.join(' '),
+      postUrl: postUrl,
+      providerId: providerId,
+      providerName: providerName,
+    );
+  }
 }
 
 /// A watch / download link extracted from a provider post page.
@@ -120,6 +152,13 @@ abstract class ContentProvider {
   String get id;
   String get name;
 
+  /// Optional hook the UI sets when a hidden WebView is available.
+  /// Providers blocked for plain HTTP (e.g. MLSBD behind Cloudflare)
+  /// can fetch a page through it instead. Null means "no WebView
+  /// available — plain HTTP only". A null return from the hook means the
+  /// fetch failed; implementations must degrade gracefully.
+  Future<String?> Function(String url)? webViewFetch;
+
   Future<List<ProviderListing>> search(String query);
   Future<List<ProviderLink>> fetchLinks(ProviderListing listing);
 }
@@ -140,16 +179,17 @@ class ProviderRegistry {
     return null;
   }
 
-  /// Searches every provider in parallel. Each provider gets a 10s timeout
-  /// and any per-provider error degrades to an empty list, so one dead
-  /// provider never breaks the whole search. Results are merged and
-  /// deduped by post URL.
+  /// Searches every provider in parallel. Each provider gets a 30s timeout
+  /// (the HDHub4u sitemap fetch and the MLSBD WebView fetch can both take
+  /// a while on a cold first search) and any per-provider error degrades
+  /// to an empty list, so one dead provider never breaks the whole search.
+  /// Results are merged and deduped by post URL.
   static Future<List<ProviderListing>> searchAll(String query) async {
     final results = await Future.wait(
       all.map((p) => p
           .search(query)
           .timeout(
-            const Duration(seconds: 10),
+            const Duration(seconds: 30),
             onTimeout: () => <ProviderListing>[],
           )
           .catchError((_) => <ProviderListing>[])),

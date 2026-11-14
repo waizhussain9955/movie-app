@@ -5,6 +5,7 @@ import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/player_screen.dart';
 import 'services/download_service.dart';
+import 'services/update_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +61,14 @@ class MainNavigationShell extends StatefulWidget {
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
   DateTime? _lastBackPressTime;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService().checkUpdate(context, silent: true);
+    });
+  }
 
   final List<Widget> _tabs = [
     const HomeScreen(),
@@ -383,17 +392,30 @@ class ProfilePlaceholderTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 28),
+          _buildSettingTile(
+            Icons.system_update_rounded,
+            'Check for Updates',
+            'Current version: v${UpdateService.currentVersion} (Tap to check)',
+            onTap: () => UpdateService().checkUpdate(context, silent: false),
+            iconColor: const Color(0xFF00E676),
+          ),
           _buildSettingTile(Icons.cast, 'Cast to Smart TV / Chromecast', 'Configure DLNA & AirPlay'),
           _buildSettingTile(Icons.high_quality, 'Default Video Quality', '1080p Full HD'),
           _buildSettingTile(Icons.wifi, 'Download on Wi-Fi Only', 'Enabled'),
           _buildSettingTile(Icons.lock_outline, 'Parental Control (Kids PIN)', 'Disabled'),
-          _buildSettingTile(Icons.info_outline, 'About StreamMax', 'v1.0.0 (Reverse Engineered Edition)'),
+          _buildSettingTile(Icons.info_outline, 'About StreamMax', 'v${UpdateService.currentVersion} (Official Pro Edition)'),
         ],
       ),
     );
   }
 
-  Widget _buildSettingTile(IconData icon, String title, String subtitle) {
+  Widget _buildSettingTile(
+    IconData icon,
+    String title,
+    String subtitle, {
+    VoidCallback? onTap,
+    Color? iconColor,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -402,7 +424,8 @@ class ProfilePlaceholderTab extends StatelessWidget {
         border: Border.all(color: const Color(0xFF202634)),
       ),
       child: ListTile(
-        leading: Icon(icon, color: const Color(0xFFE50914)),
+        onTap: onTap,
+        leading: Icon(icon, color: iconColor ?? const Color(0xFFE50914)),
         title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
         subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 12)),
         trailing: const Icon(Icons.chevron_right, color: Color(0xFF7E8695)),

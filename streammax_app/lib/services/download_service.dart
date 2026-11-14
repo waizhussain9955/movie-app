@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/movie.dart';
+import '../providers/provider.dart';
 
 class DownloadItem {
   final Movie movie;
@@ -92,6 +93,110 @@ class DownloadService {
     }
   }
 
+  static final Map<String, String> _webHeaders = {
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  };
+
+  /// Resolves shorteners / host landing pages (hblinks, hubcdn, hubdrive, hubcloud)
+  /// into the real Cloudflare R2 / direct high-speed video download URL.
+  static Future<String?> resolveDirectMediaUrl(String pageUrl) async {
+    try {
+      // Direct media file already
+      if (pageUrl.contains('.r2.dev/') ||
+          pageUrl.endsWith('.mp4') ||
+          pageUrl.endsWith('.mkv')) {
+        return pageUrl;
+      }
+
+      final client = http.Client();
+
+      // Step 1: hblinks.lol/archives/...
+      if (pageUrl.contains('hblinks.')) {
+        final res = await client
+            .get(Uri.parse(pageUrl), headers: _webHeaders)
+            .timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final hubcdnMatch = RegExp(r'href="(https://hubcdn\.club/file/[^"]+)"').firstMatch(res.body);
+          if (hubcdnMatch != null) {
+            final resolved = await resolveDirectMediaUrl(hubcdnMatch.group(1)!);
+            if (resolved != null) return resolved;
+          }
+          final hubdriveMatch = RegExp(r'href="(https://hubdrive\.blog/file/[^"]+)"').firstMatch(res.body);
+          if (hubdriveMatch != null) {
+            final resolved = await resolveDirectMediaUrl(hubdriveMatch.group(1)!);
+            if (resolved != null) return resolved;
+          }
+          final hubcloudMatch = RegExp(r'href="(https://hubcloud\.[^/]+/drive/[^"]+)"').firstMatch(res.body);
+          if (hubcloudMatch != null) {
+            final resolved = await resolveDirectMediaUrl(hubcloudMatch.group(1)!);
+            if (resolved != null) return resolved;
+          }
+        }
+      }
+
+      // Step 2: hubcdn.club/file/...
+      if (pageUrl.contains('hubcdn.club/file/')) {
+        final res = await client
+            .get(Uri.parse(pageUrl), headers: _webHeaders)
+            .timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final base64Match = RegExp(r'inventoryidea\.com/\?r=([A-Za-z0-9+/=]+)').firstMatch(res.body);
+          if (base64Match != null) {
+            final decoded = utf8.decode(base64.decode(base64Match.group(1)!));
+            final uri = Uri.tryParse(decoded);
+            final link = uri?.queryParameters['link'];
+            if (link != null && link.startsWith('http')) {
+              return link;
+            }
+            if (decoded.startsWith('http')) return decoded;
+          }
+        }
+      }
+
+      // Step 3: hubdrive.blog/file/...
+      if (pageUrl.contains('hubdrive.blog/file/')) {
+        final res = await client
+            .get(Uri.parse(pageUrl), headers: _webHeaders)
+            .timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final driveMatch = RegExp(r'href="(https://hubcloud\.[^/]+/drive/[^"]+)"').firstMatch(res.body);
+          if (driveMatch != null) {
+            final resolved = await resolveDirectMediaUrl(driveMatch.group(1)!);
+            if (resolved != null) return resolved;
+          }
+        }
+      }
+
+      // Step 4: hubcloud drive / download
+      if (pageUrl.contains('hubcloud.')) {
+        final res = await client
+            .get(Uri.parse(pageUrl), headers: _webHeaders)
+            .timeout(const Duration(seconds: 12));
+        if (res.statusCode == 200) {
+          final r2Match = RegExp(r'href="([^"]+\.r2\.dev/[^"]+)"').firstMatch(res.body);
+          if (r2Match != null) return r2Match.group(1)!;
+
+          final gamerMatch = RegExp(r'href="(https://gamerxyt\.com/hubcloud\.php[^"]+)"').firstMatch(res.body);
+          if (gamerMatch != null) {
+            final gamerRes = await client.get(Uri.parse(gamerMatch.group(1)!), headers: _webHeaders).timeout(const Duration(seconds: 10));
+            final finalR2 = RegExp(r'href="([^"]+\.r2\.dev/[^"]+)"').firstMatch(gamerRes.body);
+            if (finalR2 != null) return finalR2.group(1)!;
+          }
+        }
+      }
+
+      // Step 5: Direct dl link parameter
+      if (pageUrl.contains('/dl/?link=')) {
+        final uri = Uri.tryParse(pageUrl);
+        final link = uri?.queryParameters['link'];
+        if (link != null && link.isNotEmpty) return link;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /// Start real persistent download
   Future<void> startDownload(
     Movie movie, {
@@ -99,9 +204,17 @@ class DownloadService {
     String? customTitle,
     String? customSize,
   }) async {
-    // Check if already in queue or completed
-    if (items.any((item) => item.movie.id == movie.id)) {
-      return;
+    // If already downloaded and file size is > 5MB, keep it
+    final existing = items.where((item) => item.movie.id == movie.id).firstOrNull;
+    if (existing != null) {
+      if (existing.isCompleted &&
+          existing.localPath != null &&
+          File(existing.localPath!).existsSync() &&
+          File(existing.localPath!).lengthSync() > 5000000) {
+        return;
+      }
+      // Clean up old stub/failed download to restart cleanly
+      await removeDownload(movie.id);
     }
 
     final displayMovie = customTitle != null
@@ -110,7 +223,7 @@ class DownloadService {
 
     final newItem = DownloadItem(
       movie: displayMovie,
-      size: customSize ?? 'Calculating...',
+      size: customSize ?? 'Resolving download...',
     );
     downloadsNotifier.value = [...items, newItem];
     await _saveToStorage();
@@ -122,40 +235,78 @@ class DownloadService {
         await saveDir.create(recursive: true);
       }
 
-      final filePath = '${saveDir.path}/movie_${movie.id}.mp4';
-      final file = File(filePath);
+      String? videoSource = downloadUrl;
 
-      // Determine video source URL
-      String videoSource = downloadUrl ?? '';
-      if (videoSource.isEmpty) {
+      // 1. Resolve direct media URL if an intermediate page was provided
+      if (videoSource != null && videoSource.isNotEmpty) {
+        newItem.speed = 'Connecting to high-speed mirror...';
+        downloadsNotifier.value = List.from(items);
+        final resolved = await resolveDirectMediaUrl(videoSource);
+        if (resolved != null && resolved.isNotEmpty) {
+          videoSource = resolved;
+        }
+      }
+
+      // 2. If videoSource is still empty, search HDHub4u provider for the movie
+      if (videoSource == null || videoSource.isEmpty) {
+        newItem.speed = 'Searching HDHub4u Dual Audio...';
+        downloadsNotifier.value = List.from(items);
+
+        try {
+          final hdhub = ProviderRegistry.byId('hdhub4u');
+          if (hdhub != null) {
+            final listings = await hdhub.search(movie.title).timeout(const Duration(seconds: 15));
+            if (listings.isNotEmpty) {
+              final links = await hdhub.fetchLinks(listings.first).timeout(const Duration(seconds: 10));
+              if (links.isNotEmpty) {
+                for (final link in links) {
+                  final resolved = await resolveDirectMediaUrl(link.url);
+                  if (resolved != null && resolved.isNotEmpty) {
+                    videoSource = resolved;
+                    newItem.size = link.label;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 3. Fallback to direct video servers if available
+      if (videoSource == null || videoSource.isEmpty) {
         for (final s in movie.servers) {
-          if (s.url.contains('.mp4') || s.url.contains('video') || s.url.contains('stream')) {
+          if (s.url.contains('.mp4') || s.url.contains('r2.dev') || s.url.contains('.mkv')) {
             videoSource = s.url;
             break;
           }
         }
       }
-      if (videoSource.isEmpty || (!videoSource.startsWith('http://') && !videoSource.startsWith('https://'))) {
-        // High-speed fallback sample to ensure valid offline playable media
-        videoSource = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+
+      // If no valid video stream could be resolved, inform user without fake 1.1MB dummy
+      if (videoSource == null ||
+          videoSource.isEmpty ||
+          (!videoSource.startsWith('http://') && !videoSource.startsWith('https://'))) {
+        newItem.progress = 0.0;
+        newItem.isCompleted = false;
+        newItem.speed = 'Pick link in Dual Audio Search';
+        downloadsNotifier.value = List.from(items);
+        await _saveToStorage();
+        return;
       }
+
+      final ext = videoSource.toLowerCase().contains('.mkv') ? 'mkv' : 'mp4';
+      final filePath = '${saveDir.path}/movie_${movie.id}.$ext';
+      final file = File(filePath);
 
       final client = http.Client();
       final request = http.Request('GET', Uri.parse(videoSource));
       request.headers['User-Agent'] =
-          'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
       final response = await client.send(request);
 
-      // Verify content is not an error page
-      final contentType = response.headers['content-type'] ?? '';
-      if (response.statusCode >= 400 || (contentType.contains('text/html') && !videoSource.endsWith('.mp4'))) {
-        client.close();
-        // Fallback to reliable offline video asset
-        return _fallbackDownload(movie, displayMovie, newItem, filePath, saveDir);
-      }
-
-      final totalBytes = response.contentLength ?? 15000000;
+      final totalBytes = response.contentLength ?? 1500000000;
       var receivedBytes = 0;
       final sink = file.openWrite();
 
@@ -192,8 +343,6 @@ class DownloadService {
           } catch (_) {}
           client.close();
 
-          await _writeCompanionHtml(file, displayMovie.title, movie.id);
-
           newItem.progress = 1.0;
           newItem.isCompleted = true;
           newItem.speed = 'Completed';
@@ -209,104 +358,18 @@ class DownloadService {
           } catch (_) {}
           client.close();
 
-          await _fallbackDownload(movie, displayMovie, newItem, filePath, saveDir);
+          newItem.speed = 'Download Interrupted';
+          downloadsNotifier.value = List.from(items);
+          await _saveToStorage();
         },
         cancelOnError: true,
       );
-    } catch (_) {
-      final docsDir = await getApplicationDocumentsDirectory();
-      final saveDir = Directory('${docsDir.path}/streammax_downloads');
-      if (!saveDir.existsSync()) await saveDir.create(recursive: true);
-      final filePath = '${saveDir.path}/movie_${movie.id}.mp4';
-      await _fallbackDownload(movie, displayMovie, newItem, filePath, saveDir);
-    }
-  }
-
-  Future<void> _fallbackDownload(
-    Movie movie,
-    Movie displayMovie,
-    DownloadItem newItem,
-    String filePath,
-    Directory saveDir,
-  ) async {
-    try {
-      final file = File(filePath);
-      if (!file.existsSync() || file.lengthSync() < 1000) {
-        // Fetch safe video fallback
-        final res = await http.get(Uri.parse('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4'));
-        if (res.statusCode == 200) {
-          await file.writeAsBytes(res.bodyBytes);
-        }
-      }
-      await _writeCompanionHtml(file, displayMovie.title, movie.id);
-
-      newItem.progress = 1.0;
-      newItem.isCompleted = true;
-      newItem.speed = 'Completed';
-      newItem.size = file.existsSync()
-          ? '${(file.lengthSync() / (1024 * 1024)).toStringAsFixed(1)} MB'
-          : 'Ready';
-      newItem.localPath = filePath;
-      downloadsNotifier.value = List.from(items);
-      await _saveToStorage();
-    } catch (_) {
-      newItem.progress = 1.0;
-      newItem.isCompleted = true;
-      newItem.speed = 'Offline Ready';
-      newItem.localPath = filePath;
+    } catch (e) {
+      debugPrint('Download error: $e');
+      newItem.speed = 'Failed';
       downloadsNotifier.value = List.from(items);
       await _saveToStorage();
     }
-  }
-
-  static Future<void> _writeCompanionHtml(File videoFile, String title, int movieId) async {
-    try {
-      final dir = videoFile.parent;
-      final fileName = videoFile.uri.pathSegments.last;
-      final htmlFile = File('${dir.path}/player_$movieId.html');
-      await htmlFile.writeAsString('''
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>$title (Offline)</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      margin: 0;
-      background-color: #000;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-    video {
-      width: 100%;
-      height: 100%;
-      max-height: 100vh;
-      object-fit: contain;
-      outline: none;
-    }
-  </style>
-</head>
-<body>
-  <video id="vPlayer" src="$fileName" controls autoplay playsinline controlsList="nodownload"></video>
-  <script>
-    document.addEventListener("DOMContentLoaded", function() {
-      var v = document.getElementById("vPlayer");
-      if (v) {
-        v.play().catch(function(){});
-      }
-    });
-  </script>
-</body>
-</html>
-''');
-    } catch (_) {}
   }
 
   /// Remove downloaded item and clean up storage

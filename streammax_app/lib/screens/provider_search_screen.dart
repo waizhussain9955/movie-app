@@ -313,7 +313,28 @@ class _ProviderSearchScreenState extends State<ProviderSearchScreen> {
             ),
           ),
         ),
-        onTap: () => _openLinkInPlayer(link, listing),
+        onTap: () {
+          if (isWatch) {
+            _openLinkInPlayer(link, listing);
+          } else {
+            Navigator.pop(context);
+            final movie = widget.movie ?? _fallbackMovie(listing);
+            DownloadService().startDownload(
+              movie,
+              downloadUrl: link.url,
+              customTitle: '${listing.title} (${link.label})',
+            );
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '⬇️ Downloading "${listing.title}" directly to "Downloads" tab!',
+                ),
+                backgroundColor: const Color(0xFFE50914),
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        },
       ),
     );
   }

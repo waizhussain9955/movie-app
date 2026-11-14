@@ -55,6 +55,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   double _volumeLevel = 1.0;
   bool _showVolumeHud = false;
   Timer? _volumeHudTimer;
+  HttpServer? _offlineServer;
 
   @override
   void initState() {
@@ -108,6 +109,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
   @override
   void dispose() {
+    _offlineServer?.close(force: true);
+    _offlineServer = null;
     // 1. Immediately kill video/audio playback so sound doesn't leak into background
     _webController.loadRequest(Uri.parse('about:blank'));
     // 2. Restore system orientation to portrait
@@ -150,10 +153,68 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _webController = controller;
 
     if (_isOfflineMode) {
-      // Offline mode: Load local video with full hardware acceleration and native HTML5 controls
-      final localFile = File(widget.localFilePath!);
-      final fileUri = Uri.file(localFile.path).toString();
-      final offlineHtml = '''
+      _startOfflineLoopbackPlayback();
+      return;
+    } else {
+      // Online mode with ad-blocking and auto-mirror failover
+      _setupStreamingController();
+    }
+  }
+
+  Future<void> _startOfflineLoopbackPlayback() async {
+    final localPath = widget.localFilePath!;
+    final localFile = File(localPath);
+
+    if (!localFile.existsSync()) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Offline file not found. Please redownload.'),
+            backgroundColor: Color(0xFFE50914),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      _offlineServer?.close(force: true);
+      _offlineServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      _offlineServer!.listen((HttpRequest request) async {
+        if (!localFile.existsSync()) {
+          request.response.statusCode = HttpStatus.notFound;
+          request.response.close();
+          return;
+        }
+
+        final totalBytes = localFile.lengthSync();
+        final ext = localPath.toLowerCase().endsWith('.mkv') ? 'x-matroska' : 'mp4';
+        request.response.headers.contentType = ContentType('video', ext);
+        request.response.headers.set('Accept-Ranges', 'bytes');
+        request.response.headers.set('Access-Control-Allow-Origin', '*');
+
+        final rangeHeader = request.headers.value('range');
+        if (rangeHeader != null && rangeHeader.startsWith('bytes=')) {
+          final parts = rangeHeader.substring(6).split('-');
+          final start = int.tryParse(parts[0]) ?? 0;
+          final end = parts.length > 1 && parts[1].isNotEmpty
+              ? (int.tryParse(parts[1]) ?? (totalBytes - 1))
+              : (totalBytes - 1);
+          final contentLength = (end - start + 1).clamp(0, totalBytes);
+
+          request.response.statusCode = HttpStatus.partialContent;
+          request.response.headers.set('Content-Range', 'bytes $start-$end/$totalBytes');
+          request.response.contentLength = contentLength;
+          await localFile.openRead(start, end + 1).pipe(request.response);
+        } else {
+          request.response.contentLength = totalBytes;
+          await localFile.openRead().pipe(request.response);
+        }
+      });
+
+      final streamUrl = 'http://127.0.0.1:${_offlineServer!.port}/video.mp4';
+      final playerHtml = '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -183,7 +244,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   </style>
 </head>
 <body>
-  <video id="vPlayer" src="$fileUri" controls autoplay playsinline controlsList="nodownload"></video>
+  <video id="vPlayer" src="$streamUrl" controls autoplay playsinline></video>
   <script>
     window.addEventListener('DOMContentLoaded', function() {
       var v = document.getElementById('vPlayer');
@@ -220,18 +281,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
             },
           ),
         )
-        ..loadHtmlString(offlineHtml, baseUrl: fileUri);
+        ..loadHtmlString(playerHtml, baseUrl: 'http://127.0.0.1:${_offlineServer!.port}/');
 
-      // Failsafe timer so loading overlay NEVER gets stuck
       Future.delayed(const Duration(milliseconds: 300), () {
         if (mounted && _isLoading) {
           setState(() => _isLoading = false);
         }
       });
-      return;
-    } else {
-      // Online mode with ad-blocking and auto-mirror failover
-      _setupStreamingController();
+    } catch (e) {
+      debugPrint('Error starting offline loopback playback: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

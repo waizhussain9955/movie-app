@@ -1,14 +1,14 @@
 {
-  "version_code": 1,
-  "version_name": "1.0.0",
+  "version_code": 2,
+  "version_name": "1.0.1",
   "apk_url": "https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk",
-  "title": "StreamMax Latest Release 🚀",
+  "title": "StreamMax Update v1.0.1 🚀",
   "changelog": [
-    "High-speed Cloudflare R2 direct movie downloads",
-    "100% Offline playback without internet (Airplane Mode support)",
-    "Dual Audio & Hindi Dubbed multi-server streaming",
-    "In-App Auto-Update System enabled"
+    "Fixed Android 3-button navigation bar overlap in player",
+    "Enhanced dual audio (Hindi / English) fast switching",
+    "Offline downloads performance optimizations",
+    "Smoother 1080p high bitrate playback"
   ],
   "force_update": false,
-  "file_size_mb": 50.4
+  "file_size_mb": 51.1
 }

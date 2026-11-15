@@ -1,9 +1,10 @@
 {
-  "version_code": 2,
-  "version_name": "1.0.1",
+  "version_code": 3,
+  "version_name": "1.0.2",
   "apk_url": "https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk",
-  "title": "StreamMax Update v1.0.1 🚀",
+  "title": "StreamMax Update v1.0.2 🚀",
   "changelog": [
+    "Official StreamMax HD brand logo updated",
     "Fixed Android 3-button navigation bar overlap in player",
     "Enhanced dual audio (Hindi / English) fast switching",
     "Offline downloads performance optimizations",

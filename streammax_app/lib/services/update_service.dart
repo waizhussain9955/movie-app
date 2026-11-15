@@ -47,8 +47,8 @@ class UpdateService {
   factory UpdateService() => _instance;
   UpdateService._internal();
 
-  static const String currentVersion = '1.0.0';
-  static const int currentVersionCode = 1;
+  static const String currentVersion = '1.0.1';
+  static const int currentVersionCode = 2;
 
   static const MethodChannel _channel = MethodChannel('com.waiz.streammax/updater');
 

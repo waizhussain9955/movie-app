@@ -2068,12 +2068,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       const SizedBox(width: 4),
                     ],
                   ),
-            body: Stack(
-              children: [
-                // Full Screen Edge-to-Edge Video Stream
-                SizedBox.expand(
-                  child: WebViewWidget(controller: _webController),
-                ),
+            body: SafeArea(
+              top: false,
+              bottom: !isLandscape,
+              child: Stack(
+                children: [
+                  // Full Screen Video Stream with safe navigation clearance
+                  SizedBox.expand(
+                    child: WebViewWidget(controller: _webController),
+                  ),
 
                 // Floating Controls Overlay in Landscape Cinema Mode
                 if (isLandscape)
@@ -2351,6 +2354,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                   ),
               ],
             ),
+          ),
           ),
         );
       },

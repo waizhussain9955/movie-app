@@ -41,6 +41,9 @@ jobs:
 
       - name: Build Signed Release APK
         working-directory: streammax_app
+        env:
+          JAVA_OPTS: "-Xmx4g"
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
         run: flutter build apk --release
 
       - name: Prepare Release Asset

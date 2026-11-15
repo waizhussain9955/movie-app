@@ -48,7 +48,7 @@ class UpdateService {
   static const String currentVersion = '1.0.0';
   static const int currentVersionCode = 1;
 
-  static const MethodChannel _channel = MethodChannel('com.waiz.streaming/updater');
+  static const MethodChannel _channel = MethodChannel('com.waiz.streammax/updater');
 
   // Primary update URL hosted on GitHub raw repository
   static const String updateConfigUrl =

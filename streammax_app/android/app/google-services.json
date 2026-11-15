@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1057433191154",
+    "project_id": "streaming-app-movie",
+    "storage_bucket": "streaming-app-movie.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1057433191154:android:40432b46f9dfa72321866b",
+        "android_client_info": {
+          "package_name": "com.waiz.streammax"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0Lu_BSwuqzMXEjkFuUAQMxN8R2-Eihwg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

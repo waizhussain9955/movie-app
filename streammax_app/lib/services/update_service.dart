@@ -58,8 +58,9 @@ class UpdateService {
 
   Future<AppUpdateInfo?> fetchLatestVersion() async {
     try {
+      final cacheBusterUrl = '$updateConfigUrl?t=${DateTime.now().millisecondsSinceEpoch}';
       final response = await http
-          .get(Uri.parse(updateConfigUrl))
+          .get(Uri.parse(cacheBusterUrl))
           .timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {

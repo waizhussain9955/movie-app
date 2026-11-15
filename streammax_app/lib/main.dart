@@ -6,9 +6,11 @@ import 'screens/search_screen.dart';
 import 'screens/player_screen.dart';
 import 'services/download_service.dart';
 import 'services/update_service.dart';
+import 'services/firebase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await FirebaseService().init();
   await DownloadService().init();
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

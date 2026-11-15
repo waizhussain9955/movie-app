@@ -1,0 +1,73 @@
+name: Build & Release StreamMax APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Release Version (e.g. 1.0.1)'
+        required: true
+        default: '1.0.1'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Signed APK & Create GitHub Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: streammax_app
+        run: flutter pub get
+
+      - name: Build Signed Release APK
+        working-directory: streammax_app
+        run: flutter build apk --release
+
+      - name: Prepare Release Asset
+        run: |
+          cp streammax_app/build/app/outputs/flutter-apk/app-release.apk StreamMax.apk
+          ls -lh StreamMax.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version_name) }}
+          name: StreamMax ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.event.inputs.version_name) }}
+          body: |
+            # 🚀 StreamMax Auto-Release
+            
+            Welcome to the new release of **StreamMax**!
+            
+            ### ✨ What's Included:
+            - Dual Audio & Hindi Dubbed multi-server streaming (1080p Full HD)
+            - 100% Offline playback (Airplane Mode supported)
+            - Fast direct Cloudflare R2 media downloads
+            - In-App Auto-Update and Firebase Cloud Messaging enabled
+            
+            ### 📥 Installation:
+            Download the `StreamMax.apk` file attached below and install on any Android device.
+          files: StreamMax.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,14 +1,15 @@
 {
-  "version_code": 3,
-  "version_name": "1.0.2",
+  "version_code": 4,
+  "version_name": "1.0.3",
   "apk_url": "https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk",
-  "title": "StreamMax Update v1.0.2 🚀",
+  "title": "StreamMax Update v1.0.3 🚀",
   "changelog": [
-    "Official StreamMax HD brand logo updated",
-    "Fixed Android 3-button navigation bar overlap in player",
-    "Enhanced dual audio (Hindi / English) fast switching",
-    "Offline downloads performance optimizations",
-    "Smoother 1080p high bitrate playback"
+    "Full compatibility with Xiaomi, Vivo, Samsung & Android 14/15",
+    "Enabled v1 + v2 dual security signing (fixes invalid package error)",
+    "Instant offline startup: app opens smoothly without internet",
+    "Offline catalogue caching: browse saved movies in airplane mode",
+    "High-contrast 'Press back again to exit' dialog",
+    "Accurate Multi-Audio badges only on verified dual audio titles"
   ],
   "force_update": false,
   "file_size_mb": 51.1

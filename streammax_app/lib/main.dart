@@ -10,8 +10,11 @@ import 'services/firebase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await FirebaseService().init();
   await DownloadService().init();
+  
+  // Non-blocking Firebase init: never freezes app startup when internet is offline
+  FirebaseService().init().catchError((e) => debugPrint('[Firebase] offline launch notice: $e'));
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -56,6 +59,11 @@ class StreamMaxApp extends StatelessWidget {
 class MainNavigationShell extends StatefulWidget {
   const MainNavigationShell({super.key});
 
+  static void switchTab(BuildContext context, int index) {
+    final state = context.findAncestorStateOfType<_MainNavigationShellState>();
+    state?.setIndex(index);
+  }
+
   @override
   State<MainNavigationShell> createState() => _MainNavigationShellState();
 }
@@ -63,6 +71,10 @@ class MainNavigationShell extends StatefulWidget {
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
   DateTime? _lastBackPressTime;
+
+  void setIndex(int index) {
+    if (mounted) setState(() => _currentIndex = index);
+  }
 
   @override
   void initState() {
@@ -97,11 +109,34 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         final now = DateTime.now();
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
           _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).removeCurrentSnackBar();
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Press back again to exit'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Color(0xFF222222),
+            SnackBar(
+              content: const Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.arrow_back_rounded, size: 16, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text(
+                    'Press back again to exit',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: const BorderSide(color: Color(0xFFE50914), width: 1.2),
+              ),
+              backgroundColor: const Color(0xFF161B26),
+              duration: const Duration(seconds: 2),
+              margin: const EdgeInsets.only(bottom: 24, left: 48, right: 48),
+              elevation: 10,
             ),
           );
           return;

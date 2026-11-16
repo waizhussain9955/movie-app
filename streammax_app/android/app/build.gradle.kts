@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.streammax_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,12 +21,9 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.waiz.streammax"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = 24
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -37,6 +34,8 @@ android {
             storePassword = "streammax2026"
             keyAlias = "streammax"
             keyPassword = "streammax2026"
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 

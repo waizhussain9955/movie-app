@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../main.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
 import 'movie_detail_screen.dart';
@@ -14,6 +15,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isLoading = true;
+  bool _isOffline = false;
   List<Movie> _heroMovies = [];
   List<Movie> _latestMovies = [];
   List<Movie> _trendingMovies = [];
@@ -46,23 +48,49 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadFeed() async {
-    if (mounted) setState(() => _isLoading = true);
-    final feed = await ApiService.getHomeFeed();
-    if (mounted) {
-      setState(() {
-        _heroMovies    = feed['hero'] ?? [];
-        _latestMovies  = feed['latest'] ?? [];
-        _trendingMovies = feed['trending'] ?? [];
-        _series        = feed['series'] ?? [];
-        _bollywood     = feed['bollywood'] ?? [];
-        _topRated      = feed['topRated'] ?? [];
-        _action        = feed['action'] ?? [];
-        _hollywood     = feed['hollywood'] ?? [];
-        _hindiDubbed   = feed['hindiDubbed'] ?? [];
-        _anime         = feed['anime'] ?? [];
-        _isLoading     = false;
-      });
+    // 1. Instantly display cached home feed if present (0 ms launch!)
+    final cached = await ApiService.getCachedHomeFeed();
+    if (cached != null && mounted && _heroMovies.isEmpty) {
+      _applyFeed(cached);
+      if (mounted) setState(() => _isLoading = false);
     }
+
+    // 2. Fetch fresh feed from network
+    try {
+      final feed = await ApiService.getHomeFeed();
+      if (mounted) {
+        _applyFeed(feed);
+        setState(() {
+          _isOffline = false;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      // If offline and no cache was found, load offline sample feed
+      if (_heroMovies.isEmpty) {
+        final fallback = await ApiService.getHomeFeed(isOfflineOnly: true);
+        if (mounted) _applyFeed(fallback);
+      }
+      if (mounted) {
+        setState(() {
+          _isOffline = true;
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _applyFeed(Map<String, List<Movie>> feed) {
+    _heroMovies    = feed['hero'] ?? [];
+    _latestMovies  = feed['latest'] ?? [];
+    _trendingMovies = feed['trending'] ?? [];
+    _series        = feed['series'] ?? [];
+    _bollywood     = feed['bollywood'] ?? [];
+    _topRated      = feed['topRated'] ?? [];
+    _action        = feed['action'] ?? [];
+    _hollywood     = feed['hollywood'] ?? [];
+    _hindiDubbed   = feed['hindiDubbed'] ?? [];
+    _anime         = feed['anime'] ?? [];
   }
 
   List<Movie> get _currentList {
@@ -198,6 +226,46 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            // ── Offline Mode Notice Banner ─────────────────────────
+            if (_isOffline)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161B26),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE50914).withValues(alpha: 0.4), width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.wifi_off_rounded, color: Color(0xFFE50914), size: 18),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Offline Mode — Viewing saved catalogue.',
+                          style: TextStyle(color: Color(0xFFB0B7C3), fontSize: 11.5, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => MainNavigationShell.switchTab(context, 2),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE50914),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Downloads →',
+                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // ── 2. Hero Featured Banner (All tab only) ─────────────
             if (featured != null && _selectedCategory == 'All')
               SliverToBoxAdapter(
@@ -299,19 +367,21 @@ class _HomeScreenState extends State<HomeScreen> {
                                     featured.year.isNotEmpty ? featured.year : '2024',
                                     style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 12, fontWeight: FontWeight.w500),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF00C853).withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: const Color(0xFF00C853), width: 0.6),
+                                  if (featured.isHindi || featured.isHindiDubbed) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF00C853).withValues(alpha: 0.2),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: const Color(0xFF00C853), width: 0.6),
+                                      ),
+                                      child: const Text(
+                                        '🎧 Multi-Audio',
+                                        style: TextStyle(color: Color(0xFF00E676), fontSize: 10, fontWeight: FontWeight.bold),
+                                      ),
                                     ),
-                                    child: const Text(
-                                      '🎧 Multi-Audio',
-                                      style: TextStyle(color: Color(0xFF00E676), fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
+                                  ],
                                 ],
                               ),
                               const SizedBox(height: 14),

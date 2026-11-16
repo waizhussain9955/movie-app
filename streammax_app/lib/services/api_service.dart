@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/movie.dart';
 
 class ApiService {
@@ -7,31 +9,78 @@ class ApiService {
   // 100% verified active TMDB Key
   static const String tmdbApiKey = '15d2ea6d0dc1d476efbca3eba2b9bbfb';
 
+  static const String _kHomeFeedCacheKey = 'streammax_home_feed_cache_v2';
+
   // In-memory query cache for instant search responses
   static final Map<String, List<Movie>> _searchCache = {};
 
+  /// Loads cached home feed from disk instantly (0ms) so app opens without internet
+  static Future<Map<String, List<Movie>>?> getCachedHomeFeed() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kHomeFeedCacheKey);
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = json.decode(raw) as Map<String, dynamic>;
+        final Map<String, List<Movie>> result = {};
+        decoded.forEach((key, val) {
+          if (val is List) {
+            result[key] = val
+                .map((item) => Movie.fromJson(item as Map<String, dynamic>))
+                .toList();
+          }
+        });
+        if (result.isNotEmpty && (result['latest']?.isNotEmpty ?? false)) {
+          return result;
+        }
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Cache read error: $e');
+    }
+    return null;
+  }
+
+  /// Saves fresh feed to disk for offline browsing
+  static Future<void> _saveHomeFeedToCache(Map<String, List<Movie>> feed) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final Map<String, dynamic> serializable = {};
+      feed.forEach((key, list) {
+        serializable[key] = list.map((m) => m.toJson()).toList();
+      });
+      await prefs.setString(_kHomeFeedCacheKey, json.encode(serializable));
+    } catch (e) {
+      debugPrint('[ApiService] Cache save error: $e');
+    }
+  }
+
   /// Fetch Home Feed with Parallel Concurrency — 9 categories, 30 latest movies
-  static Future<Map<String, List<Movie>>> getHomeFeed() async {
+  static Future<Map<String, List<Movie>>> getHomeFeed({bool isOfflineOnly = false}) async {
+    if (isOfflineOnly) {
+      final cached = await getCachedHomeFeed();
+      if (cached != null) return cached;
+      return _buildSampleFeed();
+    }
+
     try {
       final futures = await Future.wait([
         // 0: Trending Movies (30 results = page1 + page2 combined)
-        http.get(Uri.parse('$tmdbFallbackUrl/trending/movie/week?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/trending/movie/week?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 4)),
         // 1: Trending TV Series
-        http.get(Uri.parse('$tmdbFallbackUrl/trending/tv/week?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/trending/tv/week?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 4)),
         // 2: Bollywood & Hindi Original
-        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=hi&sort_by=popularity.desc&page=1')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=hi&sort_by=popularity.desc&page=1')).timeout(const Duration(seconds: 4)),
         // 3: Top Rated Movies
-        http.get(Uri.parse('$tmdbFallbackUrl/movie/top_rated?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/movie/top_rated?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 4)),
         // 4: Latest / Now Playing in Cinemas (30 newest)
-        http.get(Uri.parse('$tmdbFallbackUrl/movie/now_playing?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/movie/now_playing?api_key=$tmdbApiKey&page=1')).timeout(const Duration(seconds: 4)),
         // 5: Action & Thriller Movies
-        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_genres=28,53&sort_by=popularity.desc')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_genres=28,53&sort_by=popularity.desc')).timeout(const Duration(seconds: 4)),
         // 6: Hollywood Blockbusters (English language, high revenue)
-        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=revenue.desc')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=revenue.desc')).timeout(const Duration(seconds: 4)),
         // 7: Hindi Dubbed Hollywood (Multi-Language filter)
-        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=popularity.desc')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=popularity.desc')).timeout(const Duration(seconds: 4)),
         // 8: Popular Anime (Japanese animation, any media type)
-        http.get(Uri.parse('$tmdbFallbackUrl/discover/tv?api_key=$tmdbApiKey&with_genres=16&with_original_language=ja&sort_by=popularity.desc')).timeout(const Duration(seconds: 7)),
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/tv?api_key=$tmdbApiKey&with_genres=16&with_original_language=ja&sort_by=popularity.desc')).timeout(const Duration(seconds: 4)),
       ]).catchError((_) => <http.Response>[]);
 
       List<Movie> movies = [];
@@ -83,7 +132,7 @@ class ApiService {
       }
 
       if (movies.isNotEmpty || latestMovies.isNotEmpty) {
-        return {
+        final feed = {
           'hero': (latestMovies.isNotEmpty ? latestMovies : movies).take(5).toList(),
           'latest': latestMovies.isNotEmpty ? latestMovies : movies.take(30).toList(),
           'trending': movies,
@@ -95,10 +144,23 @@ class ApiService {
           'hindiDubbed': hindiDubbed.isNotEmpty ? hindiDubbed : hollywood.take(10).toList(),
           'anime': anime.isNotEmpty ? anime : tvShows.take(10).toList(),
         };
+
+        // Save fresh feed to cache in background
+        _saveHomeFeedToCache(feed);
+        return feed;
       }
     } catch (_) {}
 
-    // Resilient offline fallback
+    // Resilient offline fallback: Try disk cache first
+    final cached = await getCachedHomeFeed();
+    if (cached != null) {
+      return cached;
+    }
+
+    return _buildSampleFeed();
+  }
+
+  static Map<String, List<Movie>> _buildSampleFeed() {
     final sampleMovies = _getSampleMovies();
     return {
       'hero': sampleMovies.take(3).toList(),

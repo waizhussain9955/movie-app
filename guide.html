@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Installation & Troubleshooting Guide — StreamMax</title>
+  <meta name="description" content="Complete installation guide and troubleshooting manual for StreamMax Android APK. Learn how to bypass Google Play Protect, resolve package conflicts, and install smoothly.">
+  <link rel="icon" type="image/png" href="streammax_icon_512.png">
+
+  <!-- Premium Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-base: #06080d;
+      --bg-surface: #0b0f19;
+      --bg-card: rgba(15, 20, 32, 0.75);
+      --bg-card-hover: rgba(22, 30, 48, 0.9);
+
+      --primary: #e50914;
+      --primary-light: #ff2d3a;
+      --primary-glow: rgba(229, 9, 20, 0.35);
+      --primary-gradient: linear-gradient(135deg, #e50914 0%, #b80710 100%);
+
+      --accent-green: #00e676;
+      --accent-amber: #ffb800;
+      --accent-cyan: #00d2ff;
+
+      --text-main: #f0f3f8;
+      --text-muted: #959fad;
+      --text-sub: #5d6778;
+
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-bright: rgba(255, 255, 255, 0.16);
+      --border-accent: rgba(229, 9, 20, 0.45);
+
+      --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --radius-xl: 30px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      font-size: 15.5px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Lighting */
+    .glow-header {
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(800px, 100vw);
+      height: 400px;
+      background: radial-gradient(ellipse at center, rgba(229, 9, 20, 0.2) 0%, rgba(6, 8, 13, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(100px);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navbar */
+    .navbar {
+      height: 72px;
+      background: rgba(6, 8, 13, 0.88);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .brand-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      object-fit: cover;
+      box-shadow: 0 4px 16px var(--primary-glow);
+    }
+    .brand-text {
+      font-family: var(--font-display);
+      font-size: 19px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.4px;
+    }
+    .nav-back-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.2s ease;
+    }
+    .nav-back-link:hover {
+      color: #fff;
+    }
+    .nav-download-btn {
+      background: var(--primary-gradient);
+      color: #fff !important;
+      text-decoration: none;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    /* Header Hero */
+    .guide-hero {
+      padding: 60px 0 40px;
+      text-align: center;
+    }
+    .guide-tag {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: var(--primary-light);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+      display: inline-block;
+      background: rgba(229, 9, 20, 0.1);
+      border: 1px solid rgba(229, 9, 20, 0.25);
+      padding: 4px 14px;
+      border-radius: 30px;
+    }
+    .guide-title {
+      font-family: var(--font-display);
+      font-size: clamp(30px, 5vw, 48px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      margin-bottom: 14px;
+      color: #fff;
+      line-height: 1.15;
+    }
+    .guide-subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+      max-width: 620px;
+      margin: 0 auto;
+    }
+
+    /* Quick Jump Pills */
+    .jump-nav {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 30px 0 50px;
+    }
+    .jump-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .jump-chip:hover {
+      background: rgba(229, 9, 20, 0.15);
+      color: #fff;
+      border-color: rgba(229, 9, 20, 0.4);
+    }
+
+    /* Guide Section Cards */
+    .guide-section {
+      margin-bottom: 40px;
+    }
+    .guide-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      margin-bottom: 24px;
+    }
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .icon-red { background: rgba(229, 9, 20, 0.15); border: 1px solid rgba(229, 9, 20, 0.3); }
+    .icon-green { background: rgba(0, 230, 118, 0.15); border: 1px solid rgba(0, 230, 118, 0.3); }
+    .icon-amber { background: rgba(255, 184, 0, 0.15); border: 1px solid rgba(255, 184, 0, 0.3); }
+    .icon-cyan { background: rgba(0, 210, 255, 0.15); border: 1px solid rgba(0, 210, 255, 0.3); }
+
+    .card-title-group h3 {
+      font-family: var(--font-display);
+      font-size: 21px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+
+    .guide-p {
+      color: var(--text-muted);
+      font-size: 14.5px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+
+    /* Visual Simulated Dialog Box */
+    .dialog-mockup {
+      background: #141822;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 22px 20px;
+      max-width: 420px;
+      margin: 20px auto;
+      text-align: center;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+    }
+    .dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 13.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .dialog-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .dialog-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    .dialog-link-highlight {
+      display: inline-block;
+      color: #00d2ff;
+      font-weight: 800;
+      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: rgba(0, 210, 255, 0.12);
+      border: 1px dashed rgba(0, 210, 255, 0.4);
+      margin-bottom: 14px;
+      cursor: pointer;
+    }
+    .dialog-btn-dismiss {
+      background: rgba(255, 255, 255, 0.08);
+      color: #99a2b0;
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 700;
+      display: block;
+      width: 100%;
+    }
+
+    /* Steps List */
+    .steps-list {
+      list-style: none;
+      counter-reset: step-counter;
+      margin: 20px 0;
+    }
+    .step-item {
+      counter-increment: step-counter;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 16px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      padding: 16px 18px;
+      border-radius: 12px;
+    }
+    .step-item::before {
+      content: counter(step-counter);
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: var(--primary);
+      color: white;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-item-content h4 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    .step-item-content p {
+      color: var(--text-muted);
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+
+    /* Callout Note */
+    .callout {
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin: 18px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .callout-red {
+      background: rgba(229, 9, 20, 0.08);
+      border: 1px solid rgba(229, 9, 20, 0.25);
+      color: #ffadb4;
+    }
+    .callout-green {
+      background: rgba(0, 230, 118, 0.08);
+      border: 1px solid rgba(0, 230, 118, 0.25);
+      color: #b3ffd4;
+    }
+    .callout-amber {
+      background: rgba(255, 184, 0, 0.08);
+      border: 1px solid rgba(255, 184, 0, 0.25);
+      color: #ffe6a3;
+    }
+
+    /* Footer */
+    footer {
+      background: #030407;
+      border-top: 1px solid var(--border-subtle);
+      padding: 40px 0;
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 13px;
+      margin-top: 80px;
+    }
+    footer a { color: var(--text-muted); text-decoration: none; }
+    footer a:hover { color: #fff; }
+
+    @media (max-width: 600px) {
+      .container { padding: 0 16px; }
+      .guide-hero { padding: 40px 0 25px; }
+      .guide-card { padding: 22px 18px; }
+      .nav-download-btn { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glow -->
+  <div class="glow-header"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="brand-link">
+        <img src="streammax_icon_512.png" alt="StreamMax Logo" class="brand-icon">
+        <span class="brand-text">StreamMax Help Center</span>
+      </a>
+
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="index.html" class="nav-back-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          Back to Home
+        </a>
+        <a href="https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk" class="nav-download-btn">
+          Download APK
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container">
+    <!-- Header -->
+    <section class="guide-hero">
+      <span class="guide-tag">Official Support & Help</span>
+      <h1 class="guide-title">Installation & Troubleshooting Guide</h1>
+      <p class="guide-subtitle">
+        Everything you need to know about installing StreamMax, bypassing Play Protect, fixing package conflicts, and enabling 1-click updates.
+      </p>
+
+      <!-- Quick Jump Chips -->
+      <div class="jump-nav">
+        <a href="#play-protect" class="jump-chip">🛡️ Play Protect Issue</a>
+        <a href="#package-conflict" class="jump-chip">⚠️ Package Conflict Error</a>
+        <a href="#install-steps" class="jump-chip">📱 4-Step Fresh Install</a>
+        <a href="#updates" class="jump-chip">🔄 In-App Auto Updates</a>
+        <a href="#offline-mode" class="jump-chip">📴 Offline Airplane Mode</a>
+      </div>
+    </section>
+
+    <!-- ISSUE 1: PLAY PROTECT -->
+    <section class="guide-section" id="play-protect">
+      <div class="guide-card">
+        <div class="card-title-group">
+          <div class="card-icon icon-red">🛡️</div>
+          <div>
+            <h3>Issue 1: "Harmful app blocked" by Google Play Protect</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">App installs but Android blocks with a grey warning screen</p>
+          </div>
+        </div>
+
+        <p class="guide-p">
+          Because StreamMax is a direct third-party APK outside the Google Play Store, Google Play Protect's cloud heuristic scanner displays an alert on new devices:
+        </p>
+
+        <!-- Simulated Visual Box -->
+        <div class="dialog-mockup">
+          <div class="dialog-header">
+            <span>🛡️ Google Play Protect</span>
+          </div>
+          <div class="dialog-title">Harmful app blocked</div>
+          <p class="dialog-desc">
+            StreamMax<br>
+            Installing this app may put your device at risk.
+          </p>
+
+          <!-- The Key Element to Click -->
+          <div class="dialog-link-highlight">
+            👉 Tap Here: "Install anyway"
+          </div>
+
+          <div class="dialog-btn-dismiss">
+            Got it (Do NOT tap Got it — this cancels install!)
+          </div>
+        </div>
+
+        <div class="callout callout-green">
+          <div>
+            <strong>✅ How to bypass in 1 second:</strong><br>
+            Look right above the big blue <strong>"Got it"</strong> button. There is a smaller clickable link that says <strong>"Install anyway"</strong>. Tap <strong>"Install anyway"</strong> to install immediately!
+          </div>
+        </div>
+
+        <div class="callout callout-amber">
+          <div>
+            <strong>Why does Google show this?</strong><br>
+            Google Play Protect flags almost all sideloaded streaming APKs (including PikaShow, MovieBox, and Castle) because the developer certificate is newly issued. StreamMax is 100% clean, contains no malware or adware, and is signed with an official RSA-2048 security key.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ISSUE 2: PACKAGE CONFLICT -->
+    <section class="guide-section" id="package-conflict">
+      <div class="guide-card">
+        <div class="card-title-group">
+          <div class="card-icon icon-amber">⚠️</div>
+          <div>
+            <h3>Issue 2: "App not installed as package conflicts with an existing package"</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">App refuses to install over an older version</p>
+          </div>
+        </div>
+
+        <p class="guide-p">
+          This error happens exclusively when an existing version of StreamMax installed on your phone was signed with a <strong>Debug Key</strong> (from early testing), and the incoming update is signed with the new <strong>Official Production Release Key</strong>. Android's security kernel prohibits updating an app across mismatched certificates.
+        </p>
+
+        <ul class="steps-list">
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Uninstall the Old StreamMax Version</h4>
+              <p>Go to your phone Home Screen or App Drawer, long-press the old <strong>StreamMax</strong> icon, and select <strong>Uninstall (Delete)</strong>.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Install the Fresh Official Release APK</h4>
+              <p>Download the latest <strong>StreamMax.apk (v1.0.2)</strong> from this site, and tap to install.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>All Future Updates Will Work Seamlessly</h4>
+              <p>From this point forward, all future updates (v1.0.3, v1.0.4, etc.) are signed with the exact same official key and will update with 1 click without ever showing this error again!</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ISSUE 3: STEP BY STEP INSTALL -->
+    <section class="guide-section" id="install-steps">
+      <div class="guide-card">
+        <div class="card-title-group">
+          <div class="card-icon icon-green">📱</div>
+          <div>
+            <h3>Standard 4-Step Android Installation Guide</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">For Samsung, Xiaomi, Vivo, Oppo, OnePlus, and Realme devices</p>
+          </div>
+        </div>
+
+        <ul class="steps-list">
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Download the Official APK</h4>
+              <p>Click <a href="https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk" style="color: #00d2ff; font-weight: bold;">Download StreamMax APK</a>. If Chrome asks <em>"File might be harmful. Do you want to download StreamMax.apk anyway?"</em>, tap <strong>Download anyway</strong>.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Allow Install Unknown Apps (First-Time Only)</h4>
+              <p>When opening the APK, if Android prompts <em>"For your security, your phone is not allowed to install unknown apps from this source"</em>, tap <strong>Settings</strong> &rarr; toggle <strong>Allow from this source</strong> to ON.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Confirm Installation</h4>
+              <p>Tap <strong>Install</strong>. If Google Play Protect displays a prompt, tap <strong>"Install anyway"</strong>.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Launch StreamMax</h4>
+              <p>Tap <strong>Open</strong>! You now have full access to unlimited movies and series in Full HD.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ISSUE 4: IN APP UPDATES -->
+    <section class="guide-section" id="updates">
+      <div class="guide-card">
+        <div class="card-title-group">
+          <div class="card-icon icon-cyan">🔄</div>
+          <div>
+            <h3>How In-App OTA Auto-Updates Work</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">Never miss a movie server update or bug fix</p>
+          </div>
+        </div>
+
+        <p class="guide-p">
+          StreamMax features a built-in Over-The-Air (OTA) update mechanism:
+        </p>
+
+        <ul class="steps-list">
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Automatic Version Check</h4>
+              <p>Every time you launch StreamMax, the app silently checks our repository for new versions.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Update Prompt</h4>
+              <p>When a new release is available (e.g. v1.0.3), a popup dialog appears showing what's new in the changelog with a <strong>"Download & Install"</strong> button.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Manual Check Anytime</h4>
+              <p>You can also check for updates manually by opening the <strong>Me / My Profile</strong> tab and tapping <strong>"Check for Updates"</strong>.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ISSUE 5: OFFLINE AIRPLANE MODE -->
+    <section class="guide-section" id="offline-mode">
+      <div class="guide-card">
+        <div class="card-title-group">
+          <div class="card-icon icon-green">📴</div>
+          <div>
+            <h3>How to Use 100% Offline Mode (Airplane Support)</h3>
+            <p style="color: var(--text-muted); font-size: 13px;">Save mobile data and watch anywhere without internet</p>
+          </div>
+        </div>
+
+        <ul class="steps-list">
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Tap Download on Any Movie</h4>
+              <p>Open any movie or TV series episode details page, and tap the <strong>Download Offline</strong> button.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Track in "My Downloads"</h4>
+              <p>Go to the bottom navigation bar and tap <strong>Downloads</strong>. You will see real-time download speed and progress.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <div class="step-item-content">
+              <h4>Turn On Airplane Mode & Play</h4>
+              <p>Once the download completes, you can turn off Wi-Fi and mobile data. Tap on the downloaded movie to play instantly with full scrub bar and audio controls!</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>© 2026 StreamMax Media. Developed by Waiz Hussain. All rights reserved.</p>
+      <p style="margin-top: 6px;"><a href="index.html">← Return to StreamMax Home</a></p>
+    </div>
+  </footer>
+
+</body>
+</html>

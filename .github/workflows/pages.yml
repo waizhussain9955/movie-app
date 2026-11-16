@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'index.html'
+      - 'guide.html'
       - 'streammax_icon_512.png'
       - 'screenshots/**'
       - '.nojekyll'
@@ -37,6 +38,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
+          cp guide.html _site/
           cp streammax_icon_512.png _site/
           cp -r screenshots _site/
           touch _site/.nojekyll

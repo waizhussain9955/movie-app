@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamMax — Unlimited 1080p Movies & Series | Official Download</title>
+  <meta name="description" content="Download StreamMax APK for Android. Watch and download unlimited movies and complete web series in 1080p Full HD with Hindi Dubbed & English dual audio and 100% offline playback.">
+  <link rel="icon" type="image/png" href="streammax_icon_512.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-surface: #0f131c;
+      --bg-card: #151b27;
+      --primary: #e50914;
+      --primary-hover: #f40612;
+      --primary-glow: rgba(229, 9, 20, 0.45);
+      --accent: #ff334b;
+      --text-white: #ffffff;
+      --text-muted: #9ea3ae;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(229, 9, 20, 0.4);
+      --font-heading: 'Outfit', sans-serif;
+      --font-body: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-white);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient Background Glows */
+    .ambient-glow {
+      position: absolute;
+      width: 650px;
+      height: 650px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(229, 9, 20, 0.18) 0%, rgba(7, 9, 14, 0) 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .glow-1 { top: -100px; left: 50%; transform: translateX(-50%); }
+    .glow-2 { top: 1200px; right: -200px; background: radial-gradient(circle, rgba(229, 9, 20, 0.12) 0%, rgba(7, 9, 14, 0) 70%); }
+    .glow-3 { top: 2400px; left: -200px; background: radial-gradient(circle, rgba(255, 51, 75, 0.1) 0%, rgba(7, 9, 14, 0) 70%); }
+
+    /* Container */
+    .container {
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navbar */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: rgba(7, 9, 14, 0.82);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 1000;
+      transition: all 0.3s ease;
+    }
+    .nav-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 80px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .nav-logo {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px var(--primary-glow);
+    }
+    .nav-title {
+      font-family: var(--font-heading);
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 40%, #ff6b78 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14.5px;
+      transition: color 0.2s ease;
+    }
+    .nav-links a:hover {
+      color: var(--text-white);
+    }
+    .nav-btn {
+      background: var(--primary);
+      color: white !important;
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-weight: 700 !important;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 20px var(--primary-glow);
+      transition: all 0.25s ease;
+    }
+    .nav-btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 25px rgba(229, 9, 20, 0.6);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 170px 0 100px;
+      text-align: center;
+    }
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 50px;
+      background: rgba(229, 9, 20, 0.12);
+      border: 1px solid rgba(229, 9, 20, 0.35);
+      color: #ff6b78;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      box-shadow: 0 0 20px rgba(229, 9, 20, 0.2);
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--primary);
+      border-radius: 50%;
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(229, 9, 20, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(229, 9, 20, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(229, 9, 20, 0); }
+    }
+
+    .hero-title {
+      font-family: var(--font-heading);
+      font-size: 60px;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -1.5px;
+      max-width: 900px;
+      margin: 0 auto 20px;
+    }
+    .hero-title span {
+      background: linear-gradient(135deg, #ff2d3d 0%, #ff8b95 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-subtitle {
+      font-size: 18.5px;
+      color: var(--text-muted);
+      max-width: 680px;
+      margin: 0 auto 40px;
+      line-height: 1.6;
+    }
+
+    /* Hero Buttons */
+    .hero-cta-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 50px;
+    }
+    .cta-buttons {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn-download-primary {
+      background: linear-gradient(135deg, #e50914 0%, #b80710 100%);
+      color: white;
+      text-decoration: none;
+      padding: 18px 36px;
+      border-radius: 50px;
+      font-size: 17px;
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 10px 35px var(--primary-glow);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .btn-download-primary:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 16px 45px rgba(229, 9, 20, 0.65);
+      background: linear-gradient(135deg, #f40612 0%, #cc0812 100%);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      color: white;
+      text-decoration: none;
+      padding: 18px 32px;
+      border-radius: 50px;
+      font-size: 16px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border-color);
+      transition: all 0.25s ease;
+      backdrop-filter: blur(10px);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-3px);
+    }
+    .meta-badges {
+      display: flex;
+      gap: 22px;
+      color: #7e8594;
+      font-size: 13.5px;
+      font-weight: 600;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .meta-badges span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Mockup Showcase */
+    .mockup-container {
+      position: relative;
+      max-width: 960px;
+      margin: 30px auto 0;
+      padding: 20px;
+    }
+    .phone-mockup-wrapper {
+      position: relative;
+      display: inline-block;
+      max-width: 360px;
+      width: 100%;
+      border-radius: 44px;
+      padding: 12px;
+      background: linear-gradient(145deg, #2a3142, #121620);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 50px rgba(229, 9, 20, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .phone-screen {
+      width: 100%;
+      border-radius: 34px;
+      overflow: hidden;
+      background: #000;
+      aspect-ratio: 9 / 19.5;
+      position: relative;
+    }
+    .phone-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: opacity 0.4s ease;
+    }
+
+    /* Floating Feature Badges around phone */
+    .floating-card {
+      position: absolute;
+      background: rgba(18, 23, 33, 0.88);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+      text-align: left;
+      z-index: 2;
+      animation: float 4s ease-in-out infinite;
+    }
+    .card-left {
+      top: 15%;
+      left: 30px;
+    }
+    .card-right {
+      top: 55%;
+      right: 30px;
+      animation-delay: 2s;
+    }
+    .card-bottom {
+      bottom: 10%;
+      left: 60px;
+      animation-delay: 1s;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .card-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: rgba(229, 9, 20, 0.16);
+      border: 1px solid rgba(229, 9, 20, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .card-text h4 {
+      font-size: 14.5px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 2px;
+    }
+    .card-text p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Screen Selector Tabs */
+    .screen-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 30px;
+    }
+    .tab-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 9px 20px;
+      border-radius: 30px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab-btn.active, .tab-btn:hover {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
+
+    /* Features Section */
+    .features-section {
+      padding: 110px 0;
+      border-top: 1px solid var(--border-color);
+    }
+    .section-header {
+      text-align: center;
+      max-width: 650px;
+      margin: 0 auto 60px;
+    }
+    .section-tag {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .section-title {
+      font-family: var(--font-heading);
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 16.5px;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 24px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 32px 26px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-6px);
+      box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 25px rgba(229, 9, 20, 0.15);
+    }
+    .feature-icon-box {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: rgba(229, 9, 20, 0.12);
+      border: 1px solid rgba(229, 9, 20, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 22px;
+    }
+    .feature-card h3 {
+      font-family: var(--font-heading);
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 14.5px;
+      line-height: 1.6;
+    }
+
+    /* Installation Steps */
+    .install-section {
+      padding: 100px 0;
+      background: linear-gradient(180deg, var(--bg-dark) 0%, #0d111a 100%);
+      border-top: 1px solid var(--border-color);
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 22px;
+      margin-top: 50px;
+    }
+    .step-card {
+      background: rgba(21, 27, 39, 0.65);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 30px 24px;
+      position: relative;
+    }
+    .step-number {
+      position: absolute;
+      top: -16px;
+      left: 24px;
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 15px;
+      box-shadow: 0 4px 15px var(--primary-glow);
+    }
+    .step-card h4 {
+      font-family: var(--font-heading);
+      font-size: 18px;
+      font-weight: 700;
+      margin: 14px 0 8px;
+    }
+    .step-card p {
+      color: var(--text-muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .play-protect-note {
+      background: rgba(229, 9, 20, 0.1);
+      border: 1px solid rgba(229, 9, 20, 0.3);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 14px;
+      font-size: 12.5px;
+      color: #ffadb4;
+    }
+
+    /* FAQ Section */
+    .faq-section {
+      padding: 100px 0;
+      border-top: 1px solid var(--border-color);
+    }
+    .faq-container {
+      max-width: 820px;
+      margin: 40px auto 0;
+    }
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      margin-bottom: 14px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .faq-question {
+      padding: 22px 24px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 16.5px;
+    }
+    .faq-question span {
+      color: #fff;
+    }
+    .faq-icon {
+      font-size: 20px;
+      color: var(--primary);
+      transition: transform 0.25s ease;
+    }
+    .faq-answer {
+      padding: 0 24px 22px;
+      color: var(--text-muted);
+      font-size: 14.5px;
+      line-height: 1.6;
+      display: none;
+    }
+    .faq-item.active .faq-answer {
+      display: block;
+    }
+    .faq-item.active .faq-icon {
+      transform: rotate(45deg);
+    }
+
+    /* Final CTA */
+    .final-cta {
+      padding: 100px 0 120px;
+      text-align: center;
+      background: radial-gradient(circle at center, rgba(229, 9, 20, 0.18) 0%, rgba(7, 9, 14, 0) 70%);
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 40px 0 30px;
+      background: #05060a;
+      text-align: center;
+      color: #697082;
+      font-size: 13.5px;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 16px;
+    }
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .footer-links a:hover {
+      color: #fff;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .hero-title { font-size: 42px; }
+      .floating-card { display: none; }
+      .nav-links { display: none; }
+      .mockup-container { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="container nav-wrapper">
+      <a href="#" class="nav-brand">
+        <img src="streammax_icon_512.png" alt="StreamMax Logo" class="nav-logo">
+        <span class="nav-title">StreamMax</span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#install">How to Install</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://github.com/waizhussain9955/movie-app" target="_blank">GitHub</a>
+      </nav>
+
+      <a href="https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk" class="nav-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download APK
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="badge-live">
+        <span class="badge-dot"></span>
+        StreamMax v1.0.2 is Live • Free Direct Download
+      </div>
+
+      <h1 class="hero-title">
+        Stream Unlimited Movies & Series in <span>1080p Full HD</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Fast, free, and 100% buffer-free. Enjoy dual audio streaming (Hindi Dubbed & English), high-speed Cloudflare R2 downloads, and complete offline playback without internet.
+      </p>
+
+      <div class="hero-cta-wrapper">
+        <div class="cta-buttons">
+          <a href="https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk" class="btn-download-primary">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download StreamMax APK (v1.0.2)
+          </a>
+
+          <a href="https://uptodown.com" target="_blank" class="btn-secondary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+            Uptodown Verified Store
+          </a>
+        </div>
+
+        <div class="meta-badges">
+          <span>📦 APK Size: 51.1 MB</span>
+          <span>•</span>
+          <span>📱 Requires Android 7.0+</span>
+          <span>•</span>
+          <span>🛡️ 100% Safe & Virus-Free</span>
+          <span>•</span>
+          <span>⚡ Direct High-Speed CDN</span>
+        </div>
+      </div>
+
+      <!-- Phone Mockup Showcase -->
+      <div class="mockup-container" id="screenshots">
+        <!-- Floating badge 1 -->
+        <div class="floating-card card-left">
+          <div class="card-icon">🎧</div>
+          <div class="card-text">
+            <h4>Dual Audio Tracks</h4>
+            <p>Hindi Dubbed & English 1080p</p>
+          </div>
+        </div>
+
+        <!-- Floating badge 2 -->
+        <div class="floating-card card-right">
+          <div class="card-icon">📴</div>
+          <div class="card-text">
+            <h4>100% Offline Mode</h4>
+            <p>Watch in Airplane Mode</p>
+          </div>
+        </div>
+
+        <!-- Floating badge 3 -->
+        <div class="floating-card card-bottom">
+          <div class="card-icon">⚡</div>
+          <div class="card-text">
+            <h4>Cloudflare R2 CDN</h4>
+            <p>Direct High-Speed Downloads</p>
+          </div>
+        </div>
+
+        <!-- Phone Device Frame -->
+        <div class="phone-mockup-wrapper">
+          <div class="phone-screen">
+            <img id="mockupImage" src="screenshots/screenshot_1_home.jpg" alt="StreamMax App Screenshot">
+          </div>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="screen-tabs">
+          <button class="tab-btn active" onclick="switchScreenshot('screenshots/screenshot_1_home.jpg', this)">🏠 Home Screen</button>
+          <button class="tab-btn" onclick="switchScreenshot('screenshots/screenshot_2_details.jpg', this)">🎬 Movie Details</button>
+          <button class="tab-btn" onclick="switchScreenshot('screenshots/screenshot_3_player.jpg', this)">▶️ Video Player</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="features-section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Pure Entertainment Experience</span>
+        <h2 class="section-title">Built for Real Movie Lovers</h2>
+        <p class="section-desc">Everything you love about top premium streaming apps — without annoying subscription fees or broken links.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-box">🎧</div>
+          <h3>Dual Audio Switching</h3>
+          <p>Switch between Hindi Dubbed and English original audio on the fly with a dedicated language selector right inside the player.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">📴</div>
+          <h3>1-Tap Offline Downloads</h3>
+          <p>Download full movies and complete seasons straight to your device. Watch anywhere on airplanes, trains, or without internet.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🚀</div>
+          <h3>Ultra Fast Cloudflare CDN</h3>
+          <p>Powered by Cloudflare R2 infrastructure for blazing-fast downloads and zero-buffering 1080p full bitrate video streams.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🔄</div>
+          <h3>In-App Auto-Updates (OTA)</h3>
+          <p>Never worry about manually hunting for APK updates. StreamMax automatically notifies and updates itself with 1 click.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🎨</div>
+          <h3>Netflix Dark Interface</h3>
+          <p>Sleek, responsive dark OTT design tailored for thumb ergonomics with smart search, genre filters, and multi-server mirrors.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🛡️</div>
+          <h3>100% Free & Clean</h3>
+          <p>Signed with an official RSA-2048 production keystore. No subscription traps, no hidden root permissions, 100% clean.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Installation Steps -->
+  <section class="install-section" id="install">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Fast & Easy Setup</span>
+        <h2 class="section-title">How to Install on Android</h2>
+        <p class="section-desc">StreamMax is a free third-party APK. Follow these 4 easy steps to install on any Android phone or tablet:</p>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card">
+          <div class="step-number">1</div>
+          <h4>Download APK</h4>
+          <p>Click the <strong>Download StreamMax APK</strong> button on this page to download the latest <code>StreamMax.apk</code>.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">2</div>
+          <h4>Open Downloaded File</h4>
+          <p>Once downloaded, pull down your notification tray or go to your <strong>Files / Downloads</strong> folder and tap the APK.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">3</div>
+          <h4>Play Protect Notice</h4>
+          <p>If Google Play Protect shows a prompt, tap <strong>"Install anyway"</strong> (located right above the "Got it" button).</p>
+          <div class="play-protect-note">
+            💡 Google warns on brand new sideloaded APKs. StreamMax is 100% clean and safe.
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-number">4</div>
+          <h4>Open & Enjoy!</h4>
+          <p>Tap <strong>Open</strong> to start StreamMax. Watch thousands of movies and web series in Full HD!</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ Section -->
+  <section class="faq-section" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Got Questions?</span>
+        <h2 class="section-title">Frequently Asked Questions</h2>
+      </div>
+
+      <div class="faq-container">
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Is StreamMax completely free?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-answer">
+            Yes, StreamMax is 100% free to download and use. There are no subscriptions, registration fees, or hidden payment gateways.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>How does the 100% Offline Mode work?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-answer">
+            When you tap the Download button on any movie or episode, StreamMax saves the full video locally in the app storage. You can switch on Airplane Mode and watch without consuming any mobile data.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>Why does Google Play Protect show "Harmful app blocked"?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-answer">
+            Google Play Protect routinely shows this warning for any brand-new APK downloaded outside the Google Play Store. StreamMax is verified virus-free and clean. Simply tap <strong>"Install anyway"</strong> to complete installation safely.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-question" onclick="toggleFaq(this)">
+            <span>How will I get future updates?</span>
+            <div class="faq-icon">+</div>
+          </div>
+          <div class="faq-answer">
+            StreamMax has a built-in Over-The-Air (OTA) update system. Whenever a new version is released, the app will show an update popup on your screen with a 1-click update button.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final-cta">
+    <div class="container">
+      <h2 style="font-family: var(--font-heading); font-size: 42px; font-weight: 800; margin-bottom: 16px;">
+        Ready for Ultimate Cinema on Your Phone?
+      </h2>
+      <p style="color: var(--text-muted); font-size: 17px; max-width: 580px; margin: 0 auto 36px;">
+        Join thousands of movie lovers. Download StreamMax today and enjoy unlimited streaming in Full HD.
+      </p>
+
+      <a href="https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk" class="btn-download-primary">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download StreamMax APK Now
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="#features">Features</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#install">Install Guide</a>
+        <a href="https://github.com/waizhussain9955/movie-app" target="_blank">GitHub Repository</a>
+      </div>
+      <p>© 2026 StreamMax Media. Developed by Waiz Hussain. All rights reserved.</p>
+      <p style="margin-top: 6px; font-size: 12px; color: #494e5c;">StreamMax does not host media files on its own servers. Content is provided by third-party public indexing services.</p>
+    </div>
+  </footer>
+
+  <script>
+    function switchScreenshot(src, btn) {
+      const img = document.getElementById('mockupImage');
+      img.style.opacity = '0';
+      setTimeout(() => {
+        img.src = src;
+        img.style.opacity = '1';
+      }, 150);
+
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function toggleFaq(el) {
+      const parent = el.parentElement;
+      parent.classList.toggle('active');
+    }
+  </script>
+</body>
+</html>

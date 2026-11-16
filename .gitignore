@@ -37,3 +37,8 @@ Thumbs.db
 # Scratch temp files
 scratch/
 
+# Private Developer Documents (Never Push to GitHub)
+PRIVATE_*.md
+*SECRET*
+PRIVATE_DEVELOPER_GUIDE.md
+

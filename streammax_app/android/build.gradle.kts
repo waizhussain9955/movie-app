@@ -3,6 +3,16 @@ allprojects {
         google()
         mavenCentral()
     }
+    configurations.all {
+        resolutionStrategy {
+            force("com.google.android.gms:play-services-measurement:22.2.0")
+            force("com.google.android.gms:play-services-measurement-api:22.2.0")
+            force("com.google.android.gms:play-services-measurement-impl:22.2.0")
+            force("com.google.android.gms:play-services-measurement-sdk:22.2.0")
+            force("com.google.android.gms:play-services-measurement-sdk-api:22.2.0")
+            force("com.google.android.gms:play-services-measurement-base:22.2.0")
+        }
+    }
 }
 
 val newBuildDir: Directory =

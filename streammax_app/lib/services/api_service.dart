@@ -81,6 +81,8 @@ class ApiService {
         http.get(Uri.parse('$tmdbFallbackUrl/discover/movie?api_key=$tmdbApiKey&with_original_language=en&sort_by=popularity.desc')).timeout(const Duration(seconds: 4)),
         // 8: Popular Anime (Japanese animation, any media type)
         http.get(Uri.parse('$tmdbFallbackUrl/discover/tv?api_key=$tmdbApiKey&with_genres=16&with_original_language=ja&sort_by=popularity.desc')).timeout(const Duration(seconds: 4)),
+        // 9: Pakistani Drama Serials (Urdu original series)
+        http.get(Uri.parse('$tmdbFallbackUrl/discover/tv?api_key=$tmdbApiKey&with_original_language=ur&sort_by=popularity.desc&page=1')).timeout(const Duration(seconds: 4)),
       ]).catchError((_) => <http.Response>[]);
 
       List<Movie> movies = [];
@@ -92,6 +94,7 @@ class ApiService {
       List<Movie> hollywood = [];
       List<Movie> hindiDubbed = [];
       List<Movie> anime = [];
+      List<Movie> pakistaniDramas = [];
 
       if (futures.isNotEmpty && futures[0].statusCode == 200) {
         final data = json.decode(futures[0].body)['results'] as List? ?? [];
@@ -124,11 +127,15 @@ class ApiService {
       }
       if (futures.length > 7 && futures[7].statusCode == 200) {
         final d = json.decode(futures[7].body)['results'] as List? ?? [];
-        hindiDubbed = d.where((i) => i['poster_path'] != null).map((item) => _mapJsonToMovie(item, 'movie', isHindiDubbed: true)).toList();
+        hindiDubbed = d.where((i) => i['poster_path'] != null).map((item) => _mapJsonToMovie(item, 'movie')).toList();
       }
       if (futures.length > 8 && futures[8].statusCode == 200) {
         final d = json.decode(futures[8].body)['results'] as List? ?? [];
         anime = d.where((i) => i['poster_path'] != null).map((item) => _mapJsonToMovie(item, 'tv')).toList();
+      }
+      if (futures.length > 9 && futures[9].statusCode == 200) {
+        final d = json.decode(futures[9].body)['results'] as List? ?? [];
+        pakistaniDramas = d.where((i) => i['poster_path'] != null).map((item) => _mapJsonToMovie(item, 'tv')).toList();
       }
 
       if (movies.isNotEmpty || latestMovies.isNotEmpty) {
@@ -143,6 +150,7 @@ class ApiService {
           'hollywood': hollywood.isNotEmpty ? hollywood : movies.take(10).toList(),
           'hindiDubbed': hindiDubbed.isNotEmpty ? hindiDubbed : hollywood.take(10).toList(),
           'anime': anime.isNotEmpty ? anime : tvShows.take(10).toList(),
+          'pakistani_dramas': pakistaniDramas.isNotEmpty ? pakistaniDramas : tvShows.take(10).toList(),
         };
 
         // Save fresh feed to cache in background
@@ -173,6 +181,7 @@ class ApiService {
       'hollywood': sampleMovies,
       'hindiDubbed': sampleMovies,
       'anime': sampleMovies,
+      'pakistani_dramas': sampleMovies.reversed.toList(),
     };
   }
 
@@ -198,7 +207,7 @@ class ApiService {
           runtime: d['runtime'],
           releaseDate: d['release_date'],
           originalLanguage: d['original_language'] ?? 'en',
-          servers: generateServers(d['id'] ?? id, isTv: false, imdbId: d['imdb_id']),
+          servers: generateServers(d['id'] ?? id, isTv: false, imdbId: d['imdb_id'], originalLanguage: d['original_language']),
         );
       }
     } catch (_) {}
@@ -233,7 +242,7 @@ class ApiService {
           genres: (d['genres'] as List?)?.map((g) => g['name'].toString()).toList() ?? [],
           releaseDate: d['first_air_date'],
           originalLanguage: d['original_language'] ?? 'en',
-          servers: generateServers(d['id'] ?? id, isTv: true, season: 1, episode: 1),
+          servers: generateServers(d['id'] ?? id, isTv: true, season: 1, episode: 1, originalLanguage: d['original_language']),
         );
 
         // Money Heist (71446): TMDB lists only 3 broadcast parts. Override with full 5 Netflix seasons!
@@ -392,11 +401,12 @@ class ApiService {
     bool isHindiAudio = false,
     String? netMirrorStreamUrl,
     String? movieBoxStreamUrl,
+    String? originalLanguage,
   }) {
     final List<StreamServer> list = [];
 
-    // 1. MovieBox Official Hindi Dubbed (Clean direct MP4, Zero Warning Clip)
-    if (movieBoxStreamUrl != null && movieBoxStreamUrl.isNotEmpty) {
+    // 1. MovieBox Official Hindi Dubbed (ONLY when user explicitly chose Hindi mode!)
+    if (isHindiAudio && movieBoxStreamUrl != null && movieBoxStreamUrl.isNotEmpty) {
       list.add(
         StreamServer(
           id: list.length + 1,
@@ -407,8 +417,8 @@ class ApiService {
       );
     }
 
-    // 2. NetMirror Multi-Audio HLS stream
-    if (netMirrorStreamUrl != null && netMirrorStreamUrl.isNotEmpty) {
+    // 2. NetMirror Multi-Audio HLS stream (ONLY when user explicitly chose Hindi mode!)
+    if (isHindiAudio && netMirrorStreamUrl != null && netMirrorStreamUrl.isNotEmpty) {
       list.add(
         StreamServer(
           id: list.length + 1,
@@ -420,176 +430,288 @@ class ApiService {
     }
 
     if (isTv) {
-      if (isHindiAudio) {
+      // 1. Pakistani Drama Serials (Urdu Original) - prioritized verified Asian TV mirrors
+      if (originalLanguage == 'ur') {
         list.addAll([
           StreamServer(
             id: list.length + 1,
-            name: 'Server ${list.length + 1} (VidLink Pro - Multi-Audio & Subtitles)',
-            quality: '1080p HD',
-            url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914&autoplay=true',
-          ),
-          StreamServer(
-            id: list.length + 2,
-            name: 'Server ${list.length + 2} (Videasy VIP - Multi-Language)',
-            quality: '1080p HD',
-            url: 'https://player.videasy.net/tv/$id/$season/$episode',
-          ),
-          StreamServer(
-            id: list.length + 3,
-            name: 'Server ${list.length + 3} (VidSrc Pro - Multi-Language)',
-            quality: '1080p HD',
-            url: 'https://vidsrc.to/embed/tv/$id/$season/$episode',
-          ),
-          StreamServer(
-            id: list.length + 4,
-            name: 'Server ${list.length + 4} (VidSrc VIP Me - Fast Multi-Audio)',
-            quality: '1080p HD',
-            url: 'https://vidsrc.me/embed/tv?tmdb=$id&season=$season&episode=$episode',
-          ),
-          StreamServer(
-            id: list.length + 5,
-            name: 'Server ${list.length + 5} (VidSrc SH VIP)',
-            quality: '1080p HD',
-            url: 'https://vidsrc.sh/embed/tv?tmdb=$id&season=$season&episode=$episode',
-          ),
-          StreamServer(
-            id: list.length + 6,
-            name: 'Server ${list.length + 6} (MultiEmbed VIP - Multi-Audio)',
+            name: 'Server ${list.length + 1} (MultiEmbed VIP - Asian Drama)',
             quality: '1080p HD',
             url: 'https://multiembed.mov/?video_id=$id&tmdb=1&s=$season&e=$episode',
           ),
           StreamServer(
-            id: list.length + 7,
-            name: 'Server ${list.length + 7} (2Embed Mirror)',
+            id: list.length + 2,
+            name: 'Server ${list.length + 2} (AutoEmbed Pro - Fast Urdu)',
+            quality: '1080p HD',
+            url: 'https://autoembed.to/tv/tmdb/$id-$season-$episode',
+          ),
+          StreamServer(
+            id: list.length + 3,
+            name: 'Server ${list.length + 3} (VidLink Pro HLS)',
+            quality: '1080p HD',
+            url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914',
+          ),
+          StreamServer(
+            id: list.length + 4,
+            name: 'Server ${list.length + 4} (VidSrc Net VIP - 🇵🇰 Fast Urdu Mirror)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.net/embed/tv?tmdb=$id&season=$season&episode=$episode',
+          ),
+          StreamServer(
+            id: list.length + 5,
+            name: 'Server ${list.length + 5} (2Embed VIP)',
             quality: '720p',
-            url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
+            url: 'https://www.2embed.skin/embedtv/$id&s=$season&e=$episode',
+          ),
+          StreamServer(
+            id: list.length + 6,
+            name: 'Server ${list.length + 6} (VidSrc RIP Direct)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.rip/embed/tv/$id/$season/$episode',
+          ),
+          StreamServer(
+            id: list.length + 7,
+            name: 'Server ${list.length + 7} (VidSrc Me Ultra)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.me/embed/tv?tmdb=$id&season=$season&episode=$episode',
           ),
         ]);
         return list;
       }
-      list.addAll([
-        StreamServer(
-          id: list.length + 1,
-          name: 'Server ${list.length + 1} (VidLink Pro HLS)',
-          quality: '1080p HD',
-          url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914&autoplay=true',
-        ),
-        StreamServer(
-          id: list.length + 2,
-          name: 'Server ${list.length + 2} (Videasy VIP)',
-          quality: '1080p HD',
-          url: 'https://player.videasy.net/tv/$id/$season/$episode',
-        ),
-        StreamServer(
-          id: list.length + 3,
-          name: 'Server ${list.length + 3} (VidSrc Stream)',
-          quality: '1080p HD',
-          url: 'https://vidsrc.to/embed/tv/$id/$season/$episode',
-        ),
-        StreamServer(
-          id: list.length + 4,
-          name: 'Server ${list.length + 4} (VidSrc SH VIP)',
-          quality: '1080p HD',
-          url: 'https://vidsrc.sh/embed/tv?tmdb=$id&season=$season&episode=$episode',
-        ),
-        StreamServer(
-          id: list.length + 5,
-          name: 'Server ${list.length + 5} (VidSrc VIP Me - Direct Mirror)',
-          quality: '1080p HD',
-          url: 'https://vidsrc.me/embed/tv?tmdb=$id&season=$season&episode=$episode',
-        ),
-        StreamServer(
-          id: list.length + 6,
-          name: 'Server ${list.length + 6} (2Embed Mirror)',
-          quality: '720p',
-          url: 'https://www.2embed.cc/embedtv/$id&s=$season&e=$episode',
-        ),
-      ]);
-      return list;
-    } else {
+
       if (isHindiAudio) {
         list.addAll([
           StreamServer(
             id: list.length + 1,
-            name: 'Server ${list.length + 1} (VidLink Pro - Multi-Audio & Subtitles)',
+            name: 'Server ${list.length + 1} (VidLink Pro - Multi-Audio)',
             quality: '1080p HD',
-            url: 'https://vidlink.pro/movie/$id?primaryColor=e50914&autoplay=true',
+            url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914',
           ),
           StreamServer(
             id: list.length + 2,
-            name: 'Server ${list.length + 2} (Videasy VIP - Multi-Language)',
+            name: 'Server ${list.length + 2} (AutoEmbed Pro - Fast Audio)',
             quality: '1080p HD',
-            url: 'https://player.videasy.net/movie/$id',
+            url: 'https://autoembed.to/tv/tmdb/$id-$season-$episode',
           ),
           StreamServer(
             id: list.length + 3,
-            name: 'Server ${list.length + 3} (VidSrc Pro - Multi-Language)',
+            name: 'Server ${list.length + 3} (MultiEmbed VIP - Multi-Audio)',
             quality: '1080p HD',
-            url: 'https://vidsrc.to/embed/movie/$id',
+            url: 'https://multiembed.mov/?video_id=$id&tmdb=1&s=$season&e=$episode',
           ),
           StreamServer(
             id: list.length + 4,
-            name: 'Server ${list.length + 4} (VidSrc VIP Me - Fast Multi-Audio)',
+            name: 'Server ${list.length + 4} (VidSrc Net VIP - 🇮🇳 Multi-Audio)',
             quality: '1080p HD',
-            url: 'https://vidsrc.me/embed/movie?tmdb=$id',
+            url: 'https://vidsrc.net/embed/tv?tmdb=$id&season=$season&episode=$episode',
           ),
           StreamServer(
             id: list.length + 5,
-            name: 'Server ${list.length + 5} (VidSrc SH VIP)',
+            name: 'Server ${list.length + 5} (VidSrc Me Ultra - Hindi/Eng)',
             quality: '1080p HD',
-            url: 'https://vidsrc.sh/embed/movie?tmdb=$id',
+            url: 'https://vidsrc.me/embed/tv?tmdb=$id&season=$season&episode=$episode',
           ),
           StreamServer(
             id: list.length + 6,
-            name: 'Server ${list.length + 6} (MultiEmbed VIP - Multi-Audio)',
+            name: 'Server ${list.length + 6} (VidSrc RIP Direct)',
             quality: '1080p HD',
-            url: 'https://multiembed.mov/?video_id=$id&tmdb=1',
+            url: 'https://vidsrc.rip/embed/tv/$id/$season/$episode',
           ),
           StreamServer(
             id: list.length + 7,
-            name: 'Server ${list.length + 7} (2Embed Mirror)',
+            name: 'Server ${list.length + 7} (2Embed VIP)',
             quality: '720p',
-            url: 'https://www.2embed.cc/embed/$id',
+            url: 'https://www.2embed.skin/embedtv/$id&s=$season&e=$episode',
           ),
         ]);
         return list;
       }
+
       list.addAll([
         StreamServer(
           id: list.length + 1,
           name: 'Server ${list.length + 1} (VidLink Pro HLS)',
           quality: '1080p HD',
-          url: 'https://vidlink.pro/movie/$id?primaryColor=e50914&autoplay=true',
+          url: 'https://vidlink.pro/tv/$id/$season/$episode?primaryColor=e50914',
         ),
         StreamServer(
           id: list.length + 2,
-          name: 'Server ${list.length + 2} (Videasy VIP)',
+          name: 'Server ${list.length + 2} (AutoEmbed Pro - Fast CDN)',
           quality: '1080p HD',
-          url: 'https://player.videasy.net/movie/$id',
+          url: 'https://autoembed.to/tv/tmdb/$id-$season-$episode',
         ),
         StreamServer(
           id: list.length + 3,
-          name: 'Server ${list.length + 3} (VidSrc Stream)',
+          name: 'Server ${list.length + 3} (MultiEmbed VIP - Multi-Source)',
           quality: '1080p HD',
-          url: 'https://vidsrc.to/embed/movie/$id',
+          url: 'https://multiembed.mov/?video_id=$id&tmdb=1&s=$season&e=$episode',
         ),
         StreamServer(
           id: list.length + 4,
-          name: 'Server ${list.length + 4} (VidSrc SH VIP)',
+          name: 'Server ${list.length + 4} (VidSrc Net VIP - Instant 1080p)',
           quality: '1080p HD',
-          url: 'https://vidsrc.sh/embed/movie?tmdb=$id',
+          url: 'https://vidsrc.net/embed/tv?tmdb=$id&season=$season&episode=$episode',
         ),
         StreamServer(
           id: list.length + 5,
-          name: 'Server ${list.length + 5} (VidSrc VIP Me - Direct Mirror)',
-          quality: '1080p HD',
-          url: 'https://vidsrc.me/embed/movie?tmdb=$id',
+          name: 'Server ${list.length + 5} (2Embed VIP)',
+          quality: '720p',
+          url: 'https://www.2embed.skin/embedtv/$id&s=$season&e=$episode',
         ),
         StreamServer(
           id: list.length + 6,
-          name: 'Server ${list.length + 6} (2Embed Mirror)',
+          name: 'Server ${list.length + 6} (VidSrc RIP Direct)',
+          quality: '1080p HD',
+          url: 'https://vidsrc.rip/embed/tv/$id/$season/$episode',
+        ),
+        StreamServer(
+          id: list.length + 7,
+          name: 'Server ${list.length + 7} (VidSrc Me Ultra)',
+          quality: '1080p HD',
+          url: 'https://vidsrc.me/embed/tv?tmdb=$id&season=$season&episode=$episode',
+        ),
+      ]);
+      return list;
+    } else {
+      // Pakistani Cinema / Urdu Movies
+      if (originalLanguage == 'ur') {
+        list.addAll([
+          StreamServer(
+            id: list.length + 1,
+            name: 'Server ${list.length + 1} (MultiEmbed VIP - Asian Cinema)',
+            quality: '1080p HD',
+            url: 'https://multiembed.mov/?video_id=$id&tmdb=1',
+          ),
+          StreamServer(
+            id: list.length + 2,
+            name: 'Server ${list.length + 2} (AutoEmbed Pro - Fast Urdu)',
+            quality: '1080p HD',
+            url: 'https://autoembed.to/movie/tmdb/$id',
+          ),
+          StreamServer(
+            id: list.length + 3,
+            name: 'Server ${list.length + 3} (VidLink Pro HLS)',
+            quality: '1080p HD',
+            url: 'https://vidlink.pro/movie/$id?primaryColor=e50914',
+          ),
+          StreamServer(
+            id: list.length + 4,
+            name: 'Server ${list.length + 4} (VidSrc Net VIP - 🇵🇰 Fast Urdu Mirror)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.net/embed/movie?tmdb=$id',
+          ),
+          StreamServer(
+            id: list.length + 5,
+            name: 'Server ${list.length + 5} (2Embed VIP)',
+            quality: '720p',
+            url: 'https://www.2embed.skin/embed/$id',
+          ),
+          StreamServer(
+            id: list.length + 6,
+            name: 'Server ${list.length + 6} (VidSrc RIP Direct)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.rip/embed/movie/$id',
+          ),
+          StreamServer(
+            id: list.length + 7,
+            name: 'Server ${list.length + 7} (VidSrc Me Ultra)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.me/embed/movie?tmdb=$id',
+          ),
+        ]);
+        return list;
+      }
+
+      if (isHindiAudio) {
+        list.addAll([
+          StreamServer(
+            id: list.length + 1,
+            name: 'Server ${list.length + 1} (VidLink Pro - Multi-Audio)',
+            quality: '1080p HD',
+            url: 'https://vidlink.pro/movie/$id?primaryColor=e50914',
+          ),
+          StreamServer(
+            id: list.length + 2,
+            name: 'Server ${list.length + 2} (AutoEmbed Pro - Fast Audio)',
+            quality: '1080p HD',
+            url: 'https://autoembed.to/movie/tmdb/$id',
+          ),
+          StreamServer(
+            id: list.length + 3,
+            name: 'Server ${list.length + 3} (MultiEmbed VIP - Multi-Audio)',
+            quality: '1080p HD',
+            url: 'https://multiembed.mov/?video_id=$id&tmdb=1',
+          ),
+          StreamServer(
+            id: list.length + 4,
+            name: 'Server ${list.length + 4} (VidSrc Net VIP - 🇮🇳 Multi-Audio)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.net/embed/movie?tmdb=$id',
+          ),
+          StreamServer(
+            id: list.length + 5,
+            name: 'Server ${list.length + 5} (VidSrc Me Ultra - Hindi/Eng)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.me/embed/movie?tmdb=$id',
+          ),
+          StreamServer(
+            id: list.length + 6,
+            name: 'Server ${list.length + 6} (VidSrc RIP Direct)',
+            quality: '1080p HD',
+            url: 'https://vidsrc.rip/embed/movie/$id',
+          ),
+          StreamServer(
+            id: list.length + 7,
+            name: 'Server ${list.length + 7} (2Embed VIP)',
+            quality: '720p',
+            url: 'https://www.2embed.skin/embed/$id',
+          ),
+        ]);
+        return list;
+      }
+
+      list.addAll([
+        StreamServer(
+          id: list.length + 1,
+          name: 'Server ${list.length + 1} (VidLink Pro HLS)',
+          quality: '1080p HD',
+          url: 'https://vidlink.pro/movie/$id?primaryColor=e50914',
+        ),
+        StreamServer(
+          id: list.length + 2,
+          name: 'Server ${list.length + 2} (AutoEmbed Pro - Fast CDN)',
+          quality: '1080p HD',
+          url: 'https://autoembed.to/movie/tmdb/$id',
+        ),
+        StreamServer(
+          id: list.length + 3,
+          name: 'Server ${list.length + 3} (MultiEmbed VIP - Multi-Source)',
+          quality: '1080p HD',
+          url: 'https://multiembed.mov/?video_id=$id&tmdb=1',
+        ),
+        StreamServer(
+          id: list.length + 4,
+          name: 'Server ${list.length + 4} (VidSrc Net VIP - Instant 1080p)',
+          quality: '1080p HD',
+          url: 'https://vidsrc.net/embed/movie?tmdb=$id',
+        ),
+        StreamServer(
+          id: list.length + 5,
+          name: 'Server ${list.length + 5} (2Embed VIP)',
           quality: '720p',
-          url: 'https://www.2embed.cc/embed/$id',
+          url: 'https://www.2embed.skin/embed/$id',
+        ),
+        StreamServer(
+          id: list.length + 6,
+          name: 'Server ${list.length + 6} (VidSrc RIP Direct)',
+          quality: '1080p HD',
+          url: 'https://vidsrc.rip/embed/movie/$id',
+        ),
+        StreamServer(
+          id: list.length + 7,
+          name: 'Server ${list.length + 7} (VidSrc Me Ultra)',
+          quality: '1080p HD',
+          url: 'https://vidsrc.me/embed/movie?tmdb=$id',
         ),
       ]);
       return list;

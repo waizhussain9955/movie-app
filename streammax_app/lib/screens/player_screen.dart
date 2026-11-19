@@ -9,6 +9,8 @@ import '../services/api_service.dart';
 import '../services/download_service.dart';
 import '../services/netmirror_service.dart';
 import '../services/moviebox_service.dart';
+import '../services/firebase_service.dart';
+import 'provider_search_screen.dart';
 
 class PlayerScreen extends StatefulWidget {
   final Movie movie;
@@ -42,6 +44,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   late final WebViewController _webController;
   bool _isLoading = true;
   bool _hasLoadedSuccessfully = false;
+  bool _playbackStarted = false;
   bool _isOfflineMode = false;
   bool _isLandscape = false;
   bool _isHindiAudio = false;
@@ -52,20 +55,39 @@ class _PlayerScreenState extends State<PlayerScreen> {
   String? _currentEpisodeTitle;
   List<Episode>? _episodes;
   bool _isLoadingEpisodes = false;
+
+  // Real Mobile System Volume & Hardware Button Sync
+  static const MethodChannel _audioChannel = MethodChannel('com.waiz.streammax/audio');
   double _volumeLevel = 1.0;
   bool _showVolumeHud = false;
   Timer? _volumeHudTimer;
+
+  // Movie-Only Screen Brightness (Overlay Dimmer — Mobile OS brightness stays untouched)
+  double _movieBrightness = 1.0;
+  bool _showBrightnessHud = false;
+  Timer? _brightnessHudTimer;
+
   HttpServer? _offlineServer;
+  bool _controlsVisible = true;
+  Timer? _hideControlsTimer;
+  bool _contentNotFound = false;
+  Timer? _loadWatchdogTimer;
 
   @override
   void initState() {
     super.initState();
+    _initSystemVolume();
     _selectedServerIndex = 0;
     _currentServers = List.from(widget.servers);
-    _isHindiAudio = widget.initialHindiAudio ||
-        widget.movie.isHindi ||
-        widget.movie.isHindiDubbed ||
-        widget.movie.id == 71446;
+    // Money Heist (71446) respects initialHindiAudio toggle. Bollywood is native Hindi.
+    // All other series (Game of Thrones, etc.) & movies strictly default to English!
+    if (widget.movie.id == 71446) {
+      _isHindiAudio = widget.initialHindiAudio;
+    } else if (widget.movie.isHindi) {
+      _isHindiAudio = true;
+    } else {
+      _isHindiAudio = false;
+    }
     _currentEpisodeNumber = widget.episodeNumber;
     _currentEpisodeTitle = widget.episodeTitle;
     _episodes = widget.allEpisodes != null ? List.from(widget.allEpisodes!) : null;
@@ -79,23 +101,28 @@ class _PlayerScreenState extends State<PlayerScreen> {
       }).catchError((_) {});
     }
 
-    // Always prefer MovieBox Hindi stream or NetMirror dual-audio HLS server by default
-    for (var i = 0; i < _currentServers.length; i++) {
-      if (_currentServers[i].url.contains('hakunaymatata.com') || _currentServers[i].name.contains('MovieBox')) {
-        _movieBoxStreamUrl = _currentServers[i].url;
-        _selectedServerIndex = i;
-        _isHindiAudio = true;
-        break;
-      }
-      if (_currentServers[i].url.contains('.m3u8') || _currentServers[i].name.contains('Hindi')) {
-        _netMirrorStreamUrl = _currentServers[i].url;
-        if (_movieBoxStreamUrl == null) {
+    // Only for Money Heist in Hindi mode: select MovieBox or NetMirror
+    if (_isHindiAudio && widget.movie.id == 71446) {
+      for (var i = 0; i < _currentServers.length; i++) {
+        if (_currentServers[i].url.contains('hakunaymatata.com') || _currentServers[i].name.contains('MovieBox')) {
+          _movieBoxStreamUrl = _currentServers[i].url;
           _selectedServerIndex = i;
-          _isHindiAudio = true;
+          break;
+        }
+        if (_currentServers[i].url.contains('.m3u8') || _currentServers[i].name.contains('Hindi')) {
+          _netMirrorStreamUrl = _currentServers[i].url;
+          if (_movieBoxStreamUrl == null) {
+            _selectedServerIndex = i;
+          }
         }
       }
     }
     _isOfflineMode = widget.localFilePath != null && File(widget.localFilePath!).existsSync();
+
+    FirebaseService().logStreamStart(
+      title: widget.movie.title,
+      server: _currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name : 'Default',
+    );
 
     // Enable device sensor rotation (Portrait & Landscape)
     SystemChrome.setPreferredOrientations([
@@ -107,8 +134,59 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _initPlayer();
   }
 
+  void _resetControlsTimer() {
+    _hideControlsTimer?.cancel();
+    if (!_controlsVisible) {
+      if (mounted) setState(() => _controlsVisible = true);
+    }
+    _hideControlsTimer = Timer(const Duration(milliseconds: 3500), () {
+      if (mounted && _isLandscape) {
+        setState(() => _controlsVisible = false);
+      }
+    });
+  }
+
+  Future<void> _initSystemVolume() async {
+    try {
+      _audioChannel.setMethodCallHandler((call) async {
+        if (call.method == 'onVolumeChanged') {
+          final val = (call.arguments as num?)?.toDouble();
+          if (val != null && mounted) {
+            setState(() {
+              _volumeLevel = val.clamp(0.0, 1.0);
+              _showVolumeHud = true;
+              _showBrightnessHud = false;
+            });
+            _volumeHudTimer?.cancel();
+            _volumeHudTimer = Timer(const Duration(milliseconds: 1600), () {
+              if (mounted) setState(() => _showVolumeHud = false);
+            });
+          }
+        }
+      });
+
+      await _audioChannel.invokeMethod('setInterceptVolumeKeys', {'enabled': true});
+      final currentVol = await _audioChannel.invokeMethod<double>('getVolume');
+      if (currentVol != null && mounted) {
+        setState(() {
+          _volumeLevel = currentVol.clamp(0.0, 1.0);
+        });
+      }
+    } catch (e) {
+      debugPrint('Audio channel init error: $e');
+    }
+  }
+
   @override
   void dispose() {
+    try {
+      _audioChannel.invokeMethod('setInterceptVolumeKeys', {'enabled': false});
+      _audioChannel.setMethodCallHandler(null);
+    } catch (_) {}
+    _hideControlsTimer?.cancel();
+    _loadWatchdogTimer?.cancel();
+    _volumeHudTimer?.cancel();
+    _brightnessHudTimer?.cancel();
     _offlineServer?.close(force: true);
     _offlineServer = null;
     // 1. Immediately kill video/audio playback so sound doesn't leak into background
@@ -121,18 +199,50 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _toggleOrientation() {
-    setState(() => _isLandscape = !_isLandscape);
+    setState(() {
+      _isLandscape = !_isLandscape;
+      _controlsVisible = false; // Keep landscape cinema clean — zero overlays on rotate
+    });
     if (_isLandscape) {
+      _hideControlsTimer?.cancel();
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      // Auto-scale HTML5 video to fill full viewport without second user tap
+      _webController.runJavaScript('''
+        try {
+          var v = document.querySelector('video');
+          if (v) {
+            v.style.width = '100vw';
+            v.style.height = '100vh';
+            v.style.objectFit = 'contain';
+          }
+          var fsBtn = document.querySelector('.vjs-fullscreen-control, button[title*="Fullscreen"], button[aria-label*="Fullscreen"], .jw-icon-fullscreen');
+          if (fsBtn) fsBtn.click();
+        } catch(e) {}
+      ''').catchError((_) {});
     } else {
+      _hideControlsTimer?.cancel();
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
       ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      _webController.runJavaScript('''
+        try {
+          if (document.fullscreenElement || document.webkitFullscreenElement) {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          }
+          var v = document.querySelector('video');
+          if (v) {
+            v.style.width = '100%';
+            v.style.height = '100%';
+            v.style.objectFit = 'contain';
+          }
+        } catch(e) {}
+      ''').catchError((_) {});
     }
   }
 
@@ -142,7 +252,40 @@ class _PlayerScreenState extends State<PlayerScreen> {
       ..setUserAgent(
         'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
       )
-      ..setBackgroundColor(Colors.black);
+      ..setBackgroundColor(Colors.black)
+      ..addJavaScriptChannel(
+        'StreamMaxBridge',
+        onMessageReceived: (JavaScriptMessage msg) {
+          if (msg.message == 'PLAYBACK_STARTED') {
+            if (mounted) {
+              setState(() {
+                _playbackStarted = true;
+                _hasLoadedSuccessfully = true;
+                _contentNotFound = false;
+                _isLoading = false;
+              });
+              _loadWatchdogTimer?.cancel();
+            }
+          } else if (msg.message == 'CONTENT_NOT_FOUND') {
+            if (mounted) {
+              if (!_playbackStarted) {
+                // Auto-switch seamlessly during initial search
+                _handleAutoFallback('Missing content on server');
+              } else if (!_contentNotFound) {
+                setState(() => _contentNotFound = true);
+              }
+            }
+          } else if (msg.message == 'ENTER_FULLSCREEN') {
+            if (mounted && !_isLandscape) {
+              _toggleOrientation();
+            }
+          } else if (msg.message == 'EXIT_FULLSCREEN') {
+            if (mounted && _isLandscape) {
+              _toggleOrientation();
+            }
+          }
+        },
+      );
 
     if (Platform.isAndroid && controller.platform is AndroidWebViewController) {
       final androidCtrl = controller.platform as AndroidWebViewController;
@@ -295,9 +438,19 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _setupStreamingController() {
+    _contentNotFound = false;
+    _playbackStarted = false;
+    _loadWatchdogTimer?.cancel();
+    // Resilient watchdog: If server takes over 15s to respond, present the manual switch banner
+    _loadWatchdogTimer = Timer(const Duration(seconds: 15), () {
+      if (mounted && !_playbackStarted && !_hasLoadedSuccessfully) {
+        setState(() => _contentNotFound = true);
+      }
+    });
+
     final activeUrl = _currentServers.isNotEmpty
         ? _currentServers[_selectedServerIndex].url
-        : 'https://vidlink.pro/movie/${widget.movie.id}';
+        : 'https://vidlink.pro/movie/${widget.movie.id}?primaryColor=e50914';
 
     _webController.setNavigationDelegate(
         NavigationDelegate(
@@ -309,36 +462,95 @@ class _PlayerScreenState extends State<PlayerScreen> {
             if (mounted) {
               setState(() {
                 _isLoading = false;
-                _hasLoadedSuccessfully = true;
               });
             }
             _injectAdBlocker();
-            // Unmute media on first playback without overriding user volume adjustments
+
+            // Continuous video monitoring, kickstart & missing content detector
+            _webController.runJavaScript('''
+              try {
+                // 1. Kickstart playback if paused/stalled
+                function kickstart() {
+                  var v = document.querySelector('video');
+                  if (v && v.paused && v.currentTime === 0) {
+                    v.play().catch(function() {
+                      v.muted = true;
+                      v.play().catch(function(){});
+                    });
+                  }
+                  var btn = document.querySelector('.jw-display-icon-container, .vjs-big-play-button, button[aria-label="Play"], .play-icon, svg.lucide-play');
+                  if (btn) {
+                    try { btn.click(); } catch(e) {}
+                  }
+                }
+                setTimeout(kickstart, 1000);
+                setTimeout(kickstart, 2200);
+
+                // 2. Continuous playback tracker
+                function monitorPlay() {
+                  var videos = document.querySelectorAll('video');
+                  for (var i = 0; i < videos.length; i++) {
+                    var v = videos[i];
+                    if (!v._smTracked) {
+                      v._smTracked = true;
+                      v.addEventListener('playing', function() {
+                        if (window.StreamMaxBridge) window.StreamMaxBridge.postMessage('PLAYBACK_STARTED');
+                      });
+                      v.addEventListener('timeupdate', function() {
+                        if (v.currentTime > 0.5) {
+                          if (window.StreamMaxBridge) window.StreamMaxBridge.postMessage('PLAYBACK_STARTED');
+                        }
+                      });
+                    }
+                    if (!v.paused && v.currentTime > 0) {
+                      if (window.StreamMaxBridge) window.StreamMaxBridge.postMessage('PLAYBACK_STARTED');
+                    }
+                  }
+                }
+                setInterval(monitorPlay, 800);
+
+                // 3. Check for content missing or 404 in iframe DOM
+                function checkContent() {
+                  var b = document.body ? (document.body.innerText || '') : '';
+                  var t = document.title || '';
+                  if (b.includes("We Couldn't Find This Content") ||
+                      b.includes("Please check back another time") ||
+                      b.includes("Video not found") ||
+                      b.includes("404 Not Found") ||
+                      b.includes("Cannot GET /") ||
+                      b.includes("Episode Is Not Available") ||
+                      b.includes("Media not found") ||
+                      t.includes("Media not found")) {
+                    if (window.StreamMaxBridge) {
+                      window.StreamMaxBridge.postMessage("CONTENT_NOT_FOUND");
+                    }
+                  }
+                }
+                setTimeout(checkContent, 1200);
+                setTimeout(checkContent, 2800);
+              } catch(e) {}
+            ''').catchError((_) {});
+
+            // Unmute media on first user touch to comply with Android Autoplay Policy
             _webController.runJavaScript('''
               try {
                 function unmuteMedia() {
                   var els = document.querySelectorAll('video, audio');
                   for (var i = 0; i < els.length; i++) {
-                    if (els[i].muted) {
-                      els[i].muted = false;
-                      els[i].defaultMuted = false;
-                    }
+                    els[i].muted = false;
+                    els[i].defaultMuted = false;
                   }
                 }
-                unmuteMedia();
                 window.addEventListener('click', unmuteMedia, { once: true });
                 window.addEventListener('touchstart', unmuteMedia, { once: true });
               } catch(e) {}
             ''').catchError((_) {});
-
-            // Ensure media is unmuted on start
-            _webController.runJavaScript('if(window.unmuteAudio) window.unmuteAudio();').catchError((_) {});
           },
           onWebResourceError: (WebResourceError error) {
             // CRITICAL FIX: Only handle fallback if MAIN frame failed during INITIAL load.
             // When user seeks/forwards video, HTML5 player aborts byte-range requests (net::ERR_ABORTED).
             // Subresource errors must never trigger fallback or switch servers!
-            if (error.isForMainFrame == true && _isLoading && !_hasLoadedSuccessfully) {
+            if (error.isForMainFrame == true && !_playbackStarted && !_hasLoadedSuccessfully) {
               _handleAutoFallback('Main frame connection error');
             }
           },
@@ -367,31 +579,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
               }
             }
 
-            // 2. STRICT WHITELIST: Only verified movie stream hosts and CDNs can navigate
+            // 2. STRICT WHITELIST: Verified movie stream hosts, CDNs, and media players
             final allowedHosts = [
               'vidlink.pro',
-              'vidsrc.to',
-              'vidsrc.sh',
+              'vidsrc.net',
               'vidsrc.me',
+              'vidsrc.to',
+              'vidsrc.rip',
               'vidsrc.xyz',
               'vidsrc.icu',
               'vidsrc.cc',
-              'videasy.net',
-              'videasy.to',
-              'multiembed.mov',
-              'multiembed',
+              'vidsrc.in',
+              'vidsrc.pm',
+              'autoembed.to',
               'autoembed.me',
               'autoembed.co',
+              'multiembed.mov',
+              'multiembed',
+              '2embed.skin',
               '2embed.cc',
               'smashystream.com',
               'anyembed.xyz',
               'cinesrc.st',
               'superembed.stream',
               'embed.su',
+              'jwplayer.com',
+              'jwplatform.com',
+              'cloudflare',
               'vidcloud',
               'megacloud',
               'rabbitstream',
-              'cloudflare',
+              'upcloud',
+              'filemoon',
+              'streamtape',
+              'streamwish',
+              'vidstream',
+              'rapid-cloud',
               'm3u8',
               'mp4',
               'blob:',
@@ -405,8 +628,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
               'freecdn',
               'subscdn.top',
               'jsdelivr.net',
-              // Provider system (MLSBD + HDHub4u) — added 2026-11-14:
-              // provider watch/download pages open in this same WebView.
+              // Provider system (MLSBD + HDHub4u)
               'mlsbd.co',
               'savelinks.me',
               'hdhubinfo.com',
@@ -664,6 +886,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     video.addEventListener('play', function() {
       if (playOverlay) playOverlay.classList.add('hidden');
+      if (window.StreamMaxBridge) window.StreamMaxBridge.postMessage('PLAYBACK_STARTED');
     });
     video.addEventListener('pause', function() {
       if (playOverlay) playOverlay.classList.remove('hidden');
@@ -1012,6 +1235,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
 
     video.addEventListener('play', function() {
       overlay.classList.add('hidden');
+      if (window.StreamMaxBridge) window.StreamMaxBridge.postMessage('PLAYBACK_STARTED');
     });
     video.addEventListener('pause', function() {
       overlay.classList.remove('hidden');
@@ -1039,7 +1263,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _injectAdBlocker() {
-    const adScript = '''
+    final adScript = '''
       (function() {
         // 1. Permanently block all window popups and tab redirects
         window.open = function() { console.log('AdBlock: Blocked window.open'); return null; };
@@ -1055,13 +1279,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
           }
           if (target && target.tagName === 'A') {
             var href = (target.getAttribute('href') || '').toLowerCase();
-            if (href.startsWith('http') && 
-                !href.includes('vidlink') && 
-                !href.includes('vidsrc') && 
-                !href.includes('videasy') && 
-                !href.includes('2embed') && 
-                !href.includes('autoembed') && 
-                !href.includes('smashy')) {
+            var isSafeMedia = href.includes('vidlink') || 
+                              href.includes('vidsrc') || 
+                              href.includes('autoembed') || 
+                              href.includes('multiembed') || 
+                              href.includes('2embed') || 
+                              href.includes('smashy');
+            if (href.startsWith('http') && !isSafeMedia) {
               e.preventDefault();
               e.stopPropagation();
               console.log('Blocked clickjacking ad redirect:', href);
@@ -1070,23 +1294,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
           }
         }, true);
 
-        // 3. Unmute media on page load without overriding user volume adjustments
+        // 4. Unmute media on first user touch to comply with Android Autoplay Policy
         var unmuteAllMedia = function() {
           try {
             var media = document.querySelectorAll('video, audio');
             for (var i = 0; i < media.length; i++) {
-              if (media[i].muted) {
-                media[i].muted = false;
-                media[i].defaultMuted = false;
-              }
+              media[i].muted = false;
+              media[i].defaultMuted = false;
             }
           } catch(e) {}
         };
-        unmuteAllMedia();
         window.addEventListener('click', unmuteAllMedia, { once: true });
         window.addEventListener('touchstart', unmuteAllMedia, { once: true });
 
-        // 4. Auto-detect and select Hindi audio track if available in HTML5 video element
+        // 5. Auto-detect and select Hindi audio track ONLY if user requested Hindi audio
+        ${_isHindiAudio ? '''
         var trySelectHindiAudio = function() {
           var v = document.querySelector('video');
           if (v && v.audioTracks) {
@@ -1101,15 +1323,33 @@ class _PlayerScreenState extends State<PlayerScreen> {
           }
         };
         setInterval(trySelectHindiAudio, 2000);
+        ''' : ''}
+
+        // 6. Seamless Fullscreen Sync between HTML5 Player and Flutter Orientation
+        var handleFsChange = function() {
+          try {
+            var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+            if (window.StreamMaxBridge) {
+              window.StreamMaxBridge.postMessage(isFs ? 'ENTER_FULLSCREEN' : 'EXIT_FULLSCREEN');
+            }
+          } catch(e) {}
+        };
+        document.addEventListener('fullscreenchange', handleFsChange);
+        document.addEventListener('webkitfullscreenchange', handleFsChange);
       })();
     ''';
     _webController.runJavaScript(adScript).catchError((_) {});
   }
 
   void _handleAutoFallback(String reason) {
-    // Never auto-fallback once video has successfully loaded or during seeking
-    if (_hasLoadedSuccessfully) return;
-    if (_fallbackAttempts >= _currentServers.length) return;
+    // STRICT RULE: Never auto-fallback once video has started playing or during network buffering!
+    if (_playbackStarted) return;
+    if (_fallbackAttempts >= _currentServers.length) {
+      if (mounted && !_contentNotFound) {
+        setState(() => _contentNotFound = true);
+      }
+      return;
+    }
     _fallbackAttempts++;
 
     final nextIndex = (_selectedServerIndex + 1) % _currentServers.length;
@@ -1124,19 +1364,35 @@ class _PlayerScreenState extends State<PlayerScreen> {
         _selectedServerIndex = index;
         _isLoading = true;
         _hasLoadedSuccessfully = false;
+        _playbackStarted = false;
+        _contentNotFound = false;
+      });
+      _loadWatchdogTimer?.cancel();
+      _loadWatchdogTimer = Timer(const Duration(seconds: 15), () {
+        if (mounted && !_playbackStarted && !_hasLoadedSuccessfully) {
+          setState(() => _contentNotFound = true);
+        }
       });
       _loadActiveStream(_currentServers[index].url);
 
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: BorderSide(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
+            ),
+            margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            backgroundColor: const Color(0xF0131720),
             content: Text(
               auto
-                  ? '⚡ Auto-switched to Mirror ${index + 1} for best speed'
-                  : 'Switched to Mirror ${index + 1}',
+                  ? '⚡ Auto-connecting: Server ${index + 1}...'
+                  : 'Switched to Server ${index + 1}',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
             ),
-            duration: const Duration(seconds: 1),
-            backgroundColor: const Color(0xFFE50914),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -1149,6 +1405,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _currentEpisodeTitle = 'S${ep.seasonNumber} E${ep.episodeNumber}: ${ep.name}';
       _isLoading = true;
       _hasLoadedSuccessfully = false;
+      _playbackStarted = false;
+      _fallbackAttempts = 0;
+      _contentNotFound = false;
     });
 
     String? movieBoxUrl;
@@ -1181,6 +1440,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       isHindiAudio: _isHindiAudio,
       netMirrorStreamUrl: netmirrorUrl,
       movieBoxStreamUrl: movieBoxUrl,
+      originalLanguage: widget.movie.originalLanguage,
     );
 
     setState(() {
@@ -1188,6 +1448,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _netMirrorStreamUrl = netmirrorUrl;
       _movieBoxStreamUrl = movieBoxUrl;
       _selectedServerIndex = 0;
+    });
+
+    _loadWatchdogTimer?.cancel();
+    _loadWatchdogTimer = Timer(const Duration(seconds: 15), () {
+      if (mounted && !_playbackStarted && !_hasLoadedSuccessfully) {
+        setState(() => _contentNotFound = true);
+      }
     });
 
     _loadActiveStream(servers.first.url);
@@ -1361,14 +1628,29 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _setVolume(double vol) {
+    final clamped = vol.clamp(0.0, 1.0);
     setState(() {
-      _volumeLevel = vol.clamp(0.0, 1.0);
+      _volumeLevel = clamped;
       _showVolumeHud = true;
+      _showBrightnessHud = false;
     });
-    _webController.runJavaScript('if (window.setPlayerVolume) window.setPlayerVolume($_volumeLevel);');
+    _audioChannel.invokeMethod('setVolume', {'volume': clamped}).catchError((_) {});
     _volumeHudTimer?.cancel();
     _volumeHudTimer = Timer(const Duration(milliseconds: 1600), () {
       if (mounted) setState(() => _showVolumeHud = false);
+    });
+  }
+
+  void _setBrightness(double level) {
+    final clamped = level.clamp(0.15, 1.0);
+    setState(() {
+      _movieBrightness = clamped;
+      _showBrightnessHud = true;
+      _showVolumeHud = false;
+    });
+    _brightnessHudTimer?.cancel();
+    _brightnessHudTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _showBrightnessHud = false);
     });
   }
 
@@ -1376,6 +1658,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF131720),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -1383,8 +1666,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final volPct = (_volumeLevel * 100).round();
+            final brightPct = (_movieBrightness * 100).round();
             return SafeArea(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1398,6 +1682,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    const Text(
+                      'Player Controls',
+                      style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // SECTION 1: Mobile Media Volume
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1412,8 +1703,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
                             ),
                             const SizedBox(width: 10),
                             const Text(
-                              'Player Volume Control',
-                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                              'Device Volume',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -1426,13 +1717,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           ),
                           child: Text(
                             '$volPct%',
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    // Smooth volume slider (0% to 100%)
+                    const SizedBox(height: 12),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
                         activeTrackColor: const Color(0xFFE50914),
@@ -1453,8 +1743,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         },
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    // Quick Presets Row
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [0.0, 0.25, 0.5, 0.75, 1.0].map((v) {
@@ -1485,7 +1773,106 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         );
                       }).toList(),
                     ),
-                    const SizedBox(height: 10),
+
+                    const SizedBox(height: 24),
+                    const Divider(color: Color(0xFF202634), height: 1),
+                    const SizedBox(height: 20),
+
+                    // SECTION 2: Movie-Only Screen Brightness
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              _movieBrightness <= 0.35
+                                  ? Icons.brightness_low_rounded
+                                  : (_movieBrightness < 0.75 ? Icons.brightness_medium_rounded : Icons.brightness_high_rounded),
+                              color: const Color(0xFFFFB300),
+                              size: 24,
+                            ),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text(
+                                  'Movie Screen Brightness',
+                                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  'Movie display only • Mobile brightness unchanged',
+                                  style: TextStyle(color: Color(0xFF8E95A5), fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFB300).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFFB300), width: 0.8),
+                          ),
+                          child: Text(
+                            '$brightPct%',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: const Color(0xFFFFB300),
+                        inactiveTrackColor: const Color(0xFF2B3244),
+                        thumbColor: Colors.white,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                        overlayColor: const Color(0xFFFFB300).withValues(alpha: 0.2),
+                        trackHeight: 6,
+                      ),
+                      child: Slider(
+                        value: _movieBrightness,
+                        min: 0.15,
+                        max: 1.0,
+                        divisions: 85,
+                        onChanged: (val) {
+                          setModalState(() {});
+                          _setBrightness(val);
+                        },
+                      ),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [0.25, 0.5, 0.75, 1.0].map((v) {
+                        final label = '${(v * 100).round()}%';
+                        final isSel = (_movieBrightness - v).abs() < 0.05;
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {});
+                            _setBrightness(v);
+                          },
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isSel ? const Color(0xFFFFB300) : const Color(0xFF1B202B),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: isSel ? const Color(0xFFFFB300) : const Color(0xFF2B3244)),
+                            ),
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                color: isSel ? Colors.black : const Color(0xFF9EA3AE),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 14),
                   ],
                 ),
               ),
@@ -1495,7 +1882,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
       },
     );
   }
-
 
   void _showAudioLanguageDialog() {
     showModalBottomSheet(
@@ -1807,8 +2193,17 @@ class _PlayerScreenState extends State<PlayerScreen> {
       _webController.runJavaScript('if(window.selectAudioByLang) window.selectAudioByLang("$langPrefix");');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isHindi ? '🇮🇳 Hindi Dubbed track activated!' : '🇬🇧 English Original Audio active'),
-          backgroundColor: const Color(0xFFE50914),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+          backgroundColor: const Color(0xF0131720),
+          content: Text(
+            isHindi ? '🇮🇳 Hindi Dubbed track activated!' : '🇬🇧 English Original Audio active',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+          ),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -1816,7 +2211,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
     }
 
     // Case 2: Resolve true Hindi sources: MovieBox (clean 100% Hindi dub MP4) and NetMirror (Dual-Audio HLS)
-    if (isHindi && _movieBoxStreamUrl == null && (widget.movie.id == 71446 || widget.movie.isHindiDubbed)) {
+    // ONLY for Money Heist (71446) or genuine Bollywood (isHindi)!
+    if (isHindi && _movieBoxStreamUrl == null && (widget.movie.id == 71446 || widget.movie.isHindi)) {
       setState(() => _isLoading = true);
       try {
         final resolved = await MovieBoxService.getHindiStream(
@@ -1831,7 +2227,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
       } catch (_) {}
     }
 
-    if (isHindi && _netMirrorStreamUrl == null) {
+    if (isHindi && _netMirrorStreamUrl == null && (widget.movie.id == 71446 || widget.movie.isHindi)) {
       setState(() => _isLoading = true);
       try {
         final resolved = await NetMirrorService.resolveStream(
@@ -1859,6 +2255,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         isHindiAudio: isHindi,
         netMirrorStreamUrl: _netMirrorStreamUrl,
         movieBoxStreamUrl: _movieBoxStreamUrl,
+        originalLanguage: widget.movie.originalLanguage,
       );
       _selectedServerIndex = 0;
     });
@@ -1868,12 +2265,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isHindi
-              ? (_netMirrorStreamUrl != null
-                  ? '🇮🇳 Hindi Dual Audio stream loaded'
-                  : '🇮🇳 Hindi mode active! VidLink Pro / Videasy me player ⚙️ settings se audio check karein')
-              : '🇬🇧 Switched to English Original Audio'),
-          backgroundColor: const Color(0xFFE50914),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
+          ),
+          margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+          backgroundColor: const Color(0xF0131720),
+          content: Text(
+            isHindi
+                ? (_netMirrorStreamUrl != null
+                    ? '🇮🇳 Hindi Dual Audio stream loaded'
+                    : '🇮🇳 Hindi mode active! VidLink Pro / Videasy me player ⚙️ settings se audio check karein')
+                : '🇬🇧 Switched to English Original Audio',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+          ),
           duration: const Duration(seconds: 3),
         ),
       );
@@ -1899,11 +2305,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         }
 
         return PopScope(
-          canPop: true,
+          canPop: !isLandscape,
           onPopInvokedWithResult: (didPop, _) {
-            // Restore portrait when popping back
-            SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-            SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+            if (didPop) return;
+            // When in landscape fullscreen, back button/gesture minimizes to portrait!
+            if (isLandscape) {
+              _toggleOrientation();
+            }
           },
           child: Scaffold(
             backgroundColor: Colors.black,
@@ -1914,11 +2322,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     backgroundColor: const Color(0xFF0A0C10),
                     elevation: 0,
                     scrolledUnderElevation: 0,
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
+                    leadingWidth: 56,
+                    leading: Padding(
+                      padding: const EdgeInsets.only(left: 6),
+                      child: IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
+                        onPressed: () => Navigator.pop(context),
+                      ),
                     ),
-                    titleSpacing: 0,
+                    titleSpacing: 4,
                     title: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -1935,7 +2347,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${_currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name.split(' (')[0] : 'Mirror 1'} • ${_isHindiAudio ? "Hindi Dubbed 🇮🇳" : "English Audio 🇬🇧"}',
+                          '${_currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name.split(' (')[0] : 'Mirror 1'} • ${_isHindiAudio ? "Hindi Dubbed 🇮🇳" : (widget.movie.originalLanguage == "ur" ? "Urdu Audio 🇵🇰" : "English Audio 🇬🇧")}',
                           style: const TextStyle(
                             color: Color(0xFF9EA3AE),
                             fontSize: 11,
@@ -1947,85 +2359,24 @@ class _PlayerScreenState extends State<PlayerScreen> {
                       ],
                     ),
                     actions: [
-                      // Audio Language Icon
-                      IconButton(
-                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        icon: Icon(
-                          Icons.multitrack_audio_rounded,
-                          color: _isHindiAudio ? const Color(0xFFE50914) : Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: 'Audio Language',
-                        onPressed: _showAudioLanguageDialog,
-                      ),
                       // Episodes Drawer (for TV Series)
                       if (widget.movie.mediaType == 'tv' || widget.seasonNumber != null || (_episodes != null && _episodes!.isNotEmpty))
                         IconButton(
-                          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                          constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                           padding: const EdgeInsets.symmetric(horizontal: 4),
-                          icon: const Icon(Icons.video_library_rounded, color: Colors.white, size: 20),
+                          icon: const Icon(Icons.video_library_rounded, color: Colors.white, size: 22),
                           tooltip: 'Episodes',
                           onPressed: _showEpisodesSheet,
                         ),
-                      // Volume Slider Dialog
-                      IconButton(
-                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        icon: Icon(
-                          _volumeLevel <= 0.01
-                              ? Icons.volume_off_rounded
-                              : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        tooltip: 'Volume Slider (${(_volumeLevel * 100).round()}%)',
-                        onPressed: _showVolumeDialog,
-                      ),
-                      // Server Mirror Switcher Icon
-                      if (!_isOfflineMode)
-                        IconButton(
-                          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          icon: const Icon(Icons.dns_rounded, color: Colors.white, size: 20),
-                          tooltip: 'Switch Mirror',
-                          onPressed: _showServerSelectionSheet,
-                        ),
-                      // One-Tap Offline Download Button
-                      if (!_isOfflineMode)
-                        IconButton(
-                          constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          icon: const Icon(Icons.file_download_outlined, color: Colors.white, size: 20),
-                          tooltip: 'Download Offline',
-                          onPressed: () {
-                            final currentUrl = _currentServers.isNotEmpty
-                                ? _currentServers[_selectedServerIndex].url
-                                : null;
-                            DownloadService().startDownload(
-                              widget.movie,
-                              downloadUrl: currentUrl,
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '⬇️ Downloading "${widget.movie.title}" for offline watching in app! Track in "My Downloads".',
-                                ),
-                                backgroundColor: const Color(0xFFE50914),
-                                duration: const Duration(seconds: 3),
-                              ),
-                            );
-                          },
-                        ),
                       // Cinema Mode (Rotate)
                       IconButton(
-                        constraints: const BoxConstraints(minWidth: 38, minHeight: 38),
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
-                        icon: const Icon(Icons.crop_rotate_rounded, color: Colors.white, size: 20),
+                        icon: const Icon(Icons.crop_rotate_rounded, color: Colors.white, size: 22),
                         tooltip: 'Cinema Mode',
                         onPressed: _toggleOrientation,
                       ),
-                      // More / Reload Popup Menu
+                      // More / Settings Popup Menu (Volume, Reload, Downloads)
                       PopupMenuButton<String>(
                         constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                         padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -2036,13 +2387,73 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           side: const BorderSide(color: Color(0xFF202634)),
                         ),
                         onSelected: (val) {
-                          if (val == 'reload') {
-                            _webController.reload();
-                          } else if (val == 'info') {
+                          if (val == 'audio') {
+                            _showAudioLanguageDialog();
+                          } else if (val == 'volume') {
+                            _showVolumeDialog();
+                          } else if (val == 'server') {
                             _showServerSelectionSheet();
+                          } else if (val == 'download') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ProviderSearchScreen(
+                                  initialQuery: widget.movie.title,
+                                  movie: widget.movie,
+                                ),
+                              ),
+                            );
+                          } else if (val == 'reload') {
+                            _webController.reload();
                           }
                         },
                         itemBuilder: (ctx) => [
+                          if (!_isOfflineMode && (widget.movie.id == 71446 || widget.movie.isHindi))
+                            PopupMenuItem(
+                              value: 'audio',
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.multitrack_audio_rounded, color: Color(0xFFE50914), size: 18),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    _isHindiAudio ? 'Audio: Hindi Dubbed 🇮🇳' : 'Audio: English 🇬🇧',
+                                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          PopupMenuItem(
+                            value: 'volume',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.tune_rounded, color: Colors.white, size: 18),
+                                const SizedBox(width: 10),
+                                Text('Volume & Brightness (${(_volumeLevel * 100).round()}%)', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                          if (!_isOfflineMode)
+                            const PopupMenuItem(
+                              value: 'server',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.dns_rounded, color: Color(0xFFE50914), size: 18),
+                                  SizedBox(width: 10),
+                                  Text('Change Mirror', style: TextStyle(color: Colors.white, fontSize: 13)),
+                                ],
+                              ),
+                            ),
+                          if (!_isOfflineMode)
+                            const PopupMenuItem(
+                              value: 'download',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.file_download_outlined, color: Color(0xFF00E676), size: 18),
+                                  SizedBox(width: 10),
+                                  Text('Dual Audio Downloads', style: TextStyle(color: Colors.white, fontSize: 13)),
+                                ],
+                              ),
+                            ),
                           const PopupMenuItem(
                             value: 'reload',
                             child: Row(
@@ -2050,16 +2461,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                                 Icon(Icons.refresh_rounded, color: Colors.white, size: 18),
                                 SizedBox(width: 10),
                                 Text('Reload Stream', style: TextStyle(color: Colors.white, fontSize: 13)),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'info',
-                            child: Row(
-                              children: [
-                                Icon(Icons.dns_rounded, color: Color(0xFFE50914), size: 18),
-                                SizedBox(width: 10),
-                                Text('Change Mirror', style: TextStyle(color: Colors.white, fontSize: 13)),
                               ],
                             ),
                           ),
@@ -2073,189 +2474,342 @@ class _PlayerScreenState extends State<PlayerScreen> {
               bottom: !isLandscape,
               child: Stack(
                 children: [
-                  // Full Screen Video Stream with safe navigation clearance
-                  SizedBox.expand(
-                    child: WebViewWidget(controller: _webController),
+                  // Full Screen Video Stream with tap handler for landscape auto-hide
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () {
+                        if (isLandscape) {
+                          setState(() => _controlsVisible = !_controlsVisible);
+                          if (_controlsVisible) {
+                            _resetControlsTimer();
+                          } else {
+                            _hideControlsTimer?.cancel();
+                          }
+                        }
+                      },
+                      child: WebViewWidget(controller: _webController),
+                    ),
                   ),
 
-                // Floating Controls Overlay in Landscape Cinema Mode
+                  // Movie Screen Local Dimmer (Adjusts ONLY movie brightness, never touches mobile system brightness)
+                  if (_movieBrightness < 0.99)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Container(
+                          color: Colors.black.withValues(
+                            alpha: (1.0 - _movieBrightness).clamp(0.0, 0.85),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                // Floating Controls Overlay in Landscape Cinema Mode (Auto-Hides after 3.5s)
                 if (isLandscape)
                   Positioned(
                     top: 0,
                     left: 0,
                     right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.85),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                              onPressed: () => Navigator.pop(context),
+                    child: AnimatedOpacity(
+                      opacity: _controlsVisible ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      child: IgnorePointer(
+                        ignoring: !_controlsVisible,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.85),
+                                Colors.transparent,
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      shadows: [Shadow(color: Colors.black, blurRadius: 4)],
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '${_currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name : 'Mirror 1'}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF9EA3AE),
-                                      fontSize: 11,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Quick Audio Selector Button
-                            InkWell(
-                              onTap: _showAudioLanguageDialog,
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: _isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.3) : const Color(0xFF131720),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF202634)),
+                          ),
+                          child: SafeArea(
+                            bottom: false,
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                                  tooltip: 'Minimize to Portrait',
+                                  onPressed: _toggleOrientation,
                                 ),
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.volume_up, color: _isHindiAudio ? const Color(0xFFE50914) : Colors.amber, size: 16),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _isHindiAudio ? 'Hindi 🇮🇳' : 'English 🇬🇧',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Quick Episode Selector in Landscape
-                            if (widget.movie.mediaType == 'tv' || widget.seasonNumber != null || (_episodes != null && _episodes!.isNotEmpty)) ...[
-                              InkWell(
-                                onTap: _showEpisodesSheet,
-                                borderRadius: BorderRadius.circular(16),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF131720),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: const Color(0xFF202634)),
-                                  ),
-                                  child: Row(
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      const Icon(Icons.video_library_rounded, color: Colors.white70, size: 14),
-                                      const SizedBox(width: 6),
                                       Text(
-                                        _currentEpisodeNumber != null ? 'Ep $_currentEpisodeNumber' : 'Episodes',
-                                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                        title,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        _currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length ? _currentServers[_selectedServerIndex].name : 'Mirror 1',
+                                        style: const TextStyle(
+                                          color: Color(0xFF9EA3AE),
+                                          fontSize: 11,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                            ],
-                            // Volume Slider in Landscape
-                            InkWell(
-                              onTap: _showVolumeDialog,
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF131720),
+                                const SizedBox(width: 12),
+                                // Quick Audio Selector Button (ONLY for Money Heist or genuine Bollywood)
+                                if (!_isOfflineMode && (widget.movie.id == 71446 || widget.movie.isHindi)) ...[
+                                  InkWell(
+                                    onTap: _showAudioLanguageDialog,
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: _isHindiAudio ? const Color(0xFFE50914).withValues(alpha: 0.3) : const Color(0xFF131720),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF202634)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.volume_up, color: _isHindiAudio ? const Color(0xFFE50914) : Colors.amber, size: 16),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _isHindiAudio ? 'Hindi 🇮🇳' : 'English 🇬🇧',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                // Quick Episode Selector in Landscape
+                                if (widget.movie.mediaType == 'tv' || widget.seasonNumber != null || (_episodes != null && _episodes!.isNotEmpty)) ...[
+                                  InkWell(
+                                    onTap: _showEpisodesSheet,
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF131720),
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: const Color(0xFF202634)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.video_library_rounded, color: Colors.white70, size: 14),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            _currentEpisodeNumber != null ? 'Ep $_currentEpisodeNumber' : 'Episodes',
+                                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                // Volume Slider in Landscape
+                                InkWell(
+                                  onTap: _showVolumeDialog,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFF202634)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      _volumeLevel <= 0.01
-                                          ? Icons.volume_off_rounded
-                                          : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
-                                      color: Colors.white70,
-                                      size: 14,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF131720),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0xFF202634)),
                                     ),
-                                    const SizedBox(width: 5),
-                                    Text(
-                                      '${(_volumeLevel * 100).round()}%',
-                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          _volumeLevel <= 0.01
+                                              ? Icons.volume_off_rounded
+                                              : (_volumeLevel < 0.5 ? Icons.volume_down_rounded : Icons.volume_up_rounded),
+                                          color: Colors.white70,
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          '${(_volumeLevel * 100).round()}%',
+                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
+                                const SizedBox(width: 8),
 
-                            // Quick Server Switcher in Landscape
-                            InkWell(
-                              onTap: _showServerSelectionSheet,
-                              borderRadius: BorderRadius.circular(16),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF131720),
+                                // Movie Screen Brightness in Landscape
+                                InkWell(
+                                  onTap: _showVolumeDialog,
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFF202634)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.dns_rounded, color: Colors.white70, size: 14),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Mirror ${_selectedServerIndex + 1}',
-                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF131720),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0xFF202634)),
                                     ),
-                                    const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 16),
-                                  ],
+                                    child: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.brightness_6_rounded,
+                                          color: Color(0xFFFFB300),
+                                          size: 14,
+                                        ),
+                                        const SizedBox(width: 5),
+                                        Text(
+                                          '${(_movieBrightness * 100).round()}%',
+                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+
+                                // Quick Server Switcher in Landscape
+                                InkWell(
+                                  onTap: _showServerSelectionSheet,
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF131720),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(color: const Color(0xFF202634)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.dns_rounded, color: Colors.white70, size: 14),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Mirror ${_selectedServerIndex + 1}',
+                                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                        ),
+                                        const Icon(Icons.arrow_drop_down, color: Colors.white54, size: 16),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(color: Colors.white38),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  icon: const Icon(Icons.fullscreen_exit_rounded, size: 18),
+                                  label: const Text('Minimize', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  onPressed: _toggleOrientation,
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.crop_rotate_rounded, color: Colors.white),
-                              tooltip: 'Exit Landscape Cinema Mode',
-                              onPressed: _toggleOrientation,
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
                   ),
 
-                // Swipe on right side to smoothly control volume up/down
+                // Content Not Found / Slow Server Failover Banner
+                if (_contentNotFound && !_isOfflineMode)
+                  Positioned(
+                    top: isLandscape ? 12 : 8,
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xF0131720),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.6),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 22),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _currentServers.isNotEmpty && _selectedServerIndex < _currentServers.length
+                                      ? 'Server ${_selectedServerIndex + 1} slow / not responding'
+                                      : 'Server slow / not responding',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                                Text(
+                                  _currentServers.length > 1
+                                      ? 'Tap Switch ⚡ for Server ${((_selectedServerIndex + 1) % _currentServers.length) + 1}'
+                                      : 'Tap Switch ⚡ to choose another mirror',
+                                  style: const TextStyle(color: Color(0xFF9EA3AE), fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE50914),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () {
+                              if (_currentServers.length > 1) {
+                                final nextIdx = (_selectedServerIndex + 1) % _currentServers.length;
+                                _switchServer(nextIdx);
+                              } else {
+                                _showServerSelectionSheet();
+                              }
+                              setState(() => _contentNotFound = false);
+                            },
+                            child: const Text('Switch ⚡', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Swipe on left side to smoothly control movie screen brightness up/down
+                Positioned.fill(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: MediaQuery.sizeOf(context).width * 0.45,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onVerticalDragUpdate: (details) {
+                          final delta = -details.delta.dy / 200.0;
+                          _setBrightness(_movieBrightness + delta);
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Swipe on right side to smoothly control mobile media volume up/down
                 Positioned.fill(
                   child: Align(
                     alignment: Alignment.centerRight,
@@ -2271,7 +2825,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     ),
                   ),
                 ),
-
 
                 // Smooth Volume HUD Indicator (Center of screen)
                 if (_showVolumeHud)
@@ -2297,6 +2850,39 @@ class _PlayerScreenState extends State<PlayerScreen> {
                           const SizedBox(width: 12),
                           Text(
                             'Volume: ${(_volumeLevel * 100).round()}%',
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Smooth Movie Screen Brightness HUD Indicator (Center of screen)
+                if (_showBrightnessHud)
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFFFB300), width: 1.5),
+                        boxShadow: const [BoxShadow(color: Colors.black87, blurRadius: 12)],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _movieBrightness <= 0.35
+                                ? Icons.brightness_low_rounded
+                                : (_movieBrightness < 0.75
+                                    ? Icons.brightness_medium_rounded
+                                    : Icons.brightness_high_rounded),
+                            color: const Color(0xFFFFB300),
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Brightness: ${(_movieBrightness * 100).round()}%',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ],

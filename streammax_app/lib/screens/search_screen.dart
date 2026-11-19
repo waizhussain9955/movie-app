@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/movie.dart';
 import '../services/api_service.dart';
+import '../services/firebase_service.dart';
 import 'movie_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -48,6 +49,7 @@ class _SearchScreenState extends State<SearchScreen> {
       });
       return;
     }
+    FirebaseService().analytics?.logSearch(searchTerm: raw);
 
     // 1. SMART QUERY CLEANER FOR "IN HINDI" / "DUBBED"
     // Strips trailing 'in hindi', 'hindi dubbed', etc. so TMDB can find the actual title!

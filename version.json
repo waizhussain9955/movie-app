@@ -1,16 +1,20 @@
 {
-  "version_code": 4,
-  "version_name": "1.0.3",
+  "version_code": 5,
+  "version_name": "1.0.4",
   "apk_url": "https://github.com/waizhussain9955/movie-app/releases/latest/download/StreamMax.apk",
-  "title": "StreamMax Update v1.0.3 🚀",
+  "title": "StreamMax Update v1.0.4 🚀",
   "changelog": [
-    "Full compatibility with Xiaomi, Vivo, Samsung & Android 14/15",
-    "Enabled v1 + v2 dual security signing (fixes invalid package error)",
-    "Instant offline startup: app opens smoothly without internet",
-    "Offline catalogue caching: browse saved movies in airplane mode",
-    "High-contrast 'Press back again to exit' dialog",
-    "Accurate Multi-Audio badges only on verified dual audio titles"
+    "Smart initial auto-switch: App automatically probes & finds an active mirror on first tap without manual clicking",
+    "Playback lock: Video stream stays locked to current server during slow network buffering (no unexpected jumping)",
+    "100% Ad-Free clean streaming: Permanent clickjacking interceptor, popup blocker & zero ads",
+    "Added 🇵🇰 Pakistani Drama Serials section with native Urdu original audio (hides English/Hindi toggles)",
+    "Money Heist exclusive dual audio preference selector (English & Hindi Dubbed)",
+    "Fixed video player orientation & smooth single-tap minimize back to portrait",
+    "Android 12+ sleek dark cinema splash screen with official StreamMax branding",
+    "Real direct MP4 offline downloads via dual-audio resolvers",
+    "Hardware volume button sync: Physical phone volume keys & right-side vertical swipe now directly control real mobile media volume",
+    "Movie-only screen brightness: Left-side swipe controls video display brightness without affecting device system brightness"
   ],
   "force_update": false,
-  "file_size_mb": 51.1
+  "file_size_mb": 51.2
 }

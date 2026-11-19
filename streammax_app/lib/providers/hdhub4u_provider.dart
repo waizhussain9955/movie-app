@@ -6,7 +6,7 @@ import 'provider.dart';
 /// 2026 catalog) with a rich Hindi dual-audio catalogue (Hindi Dubbed
 /// Movies, South Hindi Dubbed, Dual Audio Packs categories).
 ///
-/// v2 SEARCH (sitemap): hdhubinfo.com/?s=<query> IGNORES the query and
+/// v2 SEARCH (sitemap): `hdhubinfo.com/?s=<query>` IGNORES the query and
 /// always returns the same Latest Releases list (~10 items), so the v1
 /// provider could never find old titles (Game of Thrones returned []).
 /// The site DOES publish a sitemap index (verified 2026-11-14 via curl):
@@ -98,7 +98,7 @@ class HdHub4uProvider implements ContentProvider {
   }
 
   /// Reads the sitemap list from the index (do NOT hardcode 1/2/3),
-  /// downloads every post sitemap in parallel and returns all <loc> URLs.
+  /// downloads every post sitemap in parallel and returns all `loc` URLs.
   static Future<List<String>> _fetchPostUrls() async {
     List<String> sitemapUrls = [];
     try {

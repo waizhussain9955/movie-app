@@ -5,6 +5,7 @@ import '../models/movie.dart';
 import '../services/api_service.dart';
 import 'movie_detail_screen.dart';
 import 'provider_search_screen.dart';
+import '../services/firebase_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,12 +27,14 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Movie> _hollywood = [];
   List<Movie> _hindiDubbed = [];
   List<Movie> _anime = [];
+  List<Movie> _pakistaniDramas = [];
   String _selectedCategory = 'All';
 
   final List<Map<String, String>> _categories = [
     {'label': 'All', 'icon': '🏠'},
     {'label': 'Latest', 'icon': '🆕'},
     {'label': 'Trending', 'icon': '🔥'},
+    {'label': 'Pakistani Serials', 'icon': '🇵🇰'},
     {'label': 'TV Series', 'icon': '📺'},
     {'label': 'Bollywood', 'icon': '🇮🇳'},
     {'label': 'Hollywood', 'icon': '🎬'},
@@ -44,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    FirebaseService().logScreenView('HomeScreen');
     _loadFeed();
   }
 
@@ -91,20 +95,22 @@ class _HomeScreenState extends State<HomeScreen> {
     _hollywood     = feed['hollywood'] ?? [];
     _hindiDubbed   = feed['hindiDubbed'] ?? [];
     _anime         = feed['anime'] ?? [];
+    _pakistaniDramas = feed['pakistani_dramas'] ?? [];
   }
 
   List<Movie> get _currentList {
     switch (_selectedCategory) {
-      case 'Latest':       return _latestMovies;
-      case 'Trending':     return _trendingMovies;
-      case 'TV Series':    return _series;
-      case 'Bollywood':    return _bollywood;
-      case 'Hollywood':    return _hollywood;
-      case 'Hindi Dubbed': return _hindiDubbed;
-      case 'Action':       return _action;
-      case 'Anime':        return _anime;
-      case 'Top Rated':    return _topRated;
-      default:             return [];
+      case 'Latest':            return _latestMovies;
+      case 'Trending':          return _trendingMovies;
+      case 'Pakistani Serials': return _pakistaniDramas;
+      case 'TV Series':         return _series;
+      case 'Bollywood':         return _bollywood;
+      case 'Hollywood':         return _hollywood;
+      case 'Hindi Dubbed':      return _hindiDubbed;
+      case 'Action':            return _action;
+      case 'Anime':             return _anime;
+      case 'Top Rated':         return _topRated;
+      default:                  return [];
     }
   }
 
@@ -520,6 +526,8 @@ class _HomeScreenState extends State<HomeScreen> {
             // ── 5. All Tab — Horizontal Movie Sections ──────────────
             if (_selectedCategory == 'All') ...[
               _buildSection(title: '🔥 Trending Worldwide',           movies: _trendingMovies),
+              if (_pakistaniDramas.isNotEmpty)
+                _buildSection(title: '🇵🇰 Pakistani Drama Serials',     movies: _pakistaniDramas),
               _buildSection(title: '📺 Top TV Series & Shows',        movies: _series),
               _buildSection(title: '🇮🇳 Bollywood & Hindi Cinema',    movies: _bollywood),
               _buildSection(title: '🎬 Hollywood Blockbusters',       movies: _hollywood),

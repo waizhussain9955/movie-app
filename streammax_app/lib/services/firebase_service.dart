@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -24,6 +25,9 @@ class FirebaseService {
   String? _fcmToken;
   String? get fcmToken => _fcmToken;
 
+  FirebaseAnalytics? _analytics;
+  FirebaseAnalytics? get analytics => _analytics;
+
   Future<void> init() async {
     try {
       // 1. Initialize Firebase Core
@@ -31,12 +35,57 @@ class FirebaseService {
       _isInitialized = true;
       debugPrint('[FirebaseService] Firebase initialized successfully');
 
-      // 2. Setup Cloud Messaging (FCM)
+      // 2. Setup Firebase Analytics
+      await _setupAnalytics();
+
+      // 3. Setup Cloud Messaging (FCM)
       await _setupMessaging();
     } catch (e) {
       debugPrint('[FirebaseService] Initialization notice: $e');
       // Non-blocking: App proceeds even if Firebase is unavailable offline
     }
+  }
+
+  Future<void> _setupAnalytics() async {
+    try {
+      _analytics = FirebaseAnalytics.instance;
+      await _analytics?.setAnalyticsCollectionEnabled(true);
+      await _analytics?.logAppOpen();
+      debugPrint('[Analytics] Firebase Analytics active & AppOpen logged');
+    } catch (e) {
+      debugPrint('[Analytics] Setup notice: $e');
+    }
+  }
+
+  Future<void> logScreenView(String screenName) async {
+    try {
+      await _analytics?.logScreenView(screenName: screenName);
+    } catch (_) {}
+  }
+
+  Future<void> logMovieView({required String title, required String id, String? category}) async {
+    try {
+      await _analytics?.logEvent(
+        name: 'movie_view',
+        parameters: {
+          'movie_title': title,
+          'movie_id': id,
+          'category': category ?? 'general',
+        },
+      );
+    } catch (_) {}
+  }
+
+  Future<void> logStreamStart({required String title, required String server}) async {
+    try {
+      await _analytics?.logEvent(
+        name: 'stream_start',
+        parameters: {
+          'movie_title': title,
+          'server_name': server,
+        },
+      );
+    } catch (_) {}
   }
 
   Future<void> _setupMessaging() async {

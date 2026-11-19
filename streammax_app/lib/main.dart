@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'screens/home_screen.dart';
 import 'screens/search_screen.dart';
 import 'screens/player_screen.dart';
@@ -32,9 +33,13 @@ class StreamMaxApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final analytics = FirebaseService().analytics;
     return MaterialApp(
       title: 'StreamMax',
       debugShowCheckedModeBanner: false,
+      navigatorObservers: [
+        if (analytics != null) FirebaseAnalyticsObserver(analytics: analytics),
+      ],
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0A0C10),
@@ -130,13 +135,13 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               ),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-                side: const BorderSide(color: Color(0xFFE50914), width: 1.2),
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
               ),
-              backgroundColor: const Color(0xFF161B26),
+              backgroundColor: const Color(0xF0161B26),
               duration: const Duration(seconds: 2),
-              margin: const EdgeInsets.only(bottom: 24, left: 48, right: 48),
-              elevation: 10,
+              margin: const EdgeInsets.only(bottom: 24, left: 56, right: 56),
+              elevation: 8,
             ),
           );
           return;

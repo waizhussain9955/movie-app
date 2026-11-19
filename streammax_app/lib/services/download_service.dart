@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/movie.dart';
 import '../providers/provider.dart';
+import 'firebase_service.dart';
 
 class DownloadItem {
   final Movie movie;
@@ -229,6 +230,16 @@ class DownloadService {
     await _saveToStorage();
 
     try {
+      FirebaseService().analytics?.logEvent(
+        name: 'download_start',
+        parameters: {
+          'movie_title': displayMovie.title,
+          'movie_id': displayMovie.id.toString(),
+        },
+      );
+    } catch (_) {}
+
+    try {
       final docsDir = await getApplicationDocumentsDirectory();
       final saveDir = Directory('${docsDir.path}/streammax_downloads');
       if (!saveDir.existsSync()) {
@@ -237,6 +248,18 @@ class DownloadService {
 
       String? videoSource = downloadUrl;
 
+      // Filter out iframe embed URLs from raw downloading so we never save HTML files
+      if (videoSource != null &&
+          (videoSource.contains('vidlink.pro') ||
+           videoSource.contains('videasy.net') ||
+           videoSource.contains('vidsrc.') ||
+           videoSource.contains('autoembed.cc') ||
+           videoSource.contains('2embed.cc') ||
+           videoSource.contains('smashystream.com') ||
+           videoSource.contains('multiembed.mov'))) {
+        videoSource = null;
+      }
+
       // 1. Resolve direct media URL if an intermediate page was provided
       if (videoSource != null && videoSource.isNotEmpty) {
         newItem.speed = 'Connecting to high-speed mirror...';
@@ -244,6 +267,8 @@ class DownloadService {
         final resolved = await resolveDirectMediaUrl(videoSource);
         if (resolved != null && resolved.isNotEmpty) {
           videoSource = resolved;
+        } else if (!videoSource.endsWith('.mp4') && !videoSource.endsWith('.mkv') && !videoSource.contains('.r2.dev/')) {
+          videoSource = null; // Do not download unresolvable HTML page!
         }
       }
 
@@ -253,9 +278,10 @@ class DownloadService {
         downloadsNotifier.value = List.from(items);
 
         try {
+          final cleanTitle = movie.title.replaceAll(RegExp(r'[^\w\s]'), ' ').trim();
           final hdhub = ProviderRegistry.byId('hdhub4u');
           if (hdhub != null) {
-            final listings = await hdhub.search(movie.title).timeout(const Duration(seconds: 15));
+            final listings = await hdhub.search(cleanTitle).timeout(const Duration(seconds: 15));
             if (listings.isNotEmpty) {
               final links = await hdhub.fetchLinks(listings.first).timeout(const Duration(seconds: 10));
               if (links.isNotEmpty) {

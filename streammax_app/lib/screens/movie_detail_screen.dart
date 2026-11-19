@@ -7,6 +7,7 @@ import '../services/netmirror_service.dart';
 import '../services/moviebox_service.dart';
 import 'player_screen.dart';
 import 'provider_search_screen.dart';
+import '../services/firebase_service.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   final Movie movie;
@@ -35,12 +36,20 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   void initState() {
     super.initState();
     _currentMovie = widget.movie;
-    // Hindi Dubbed row titles are English-original, so isHindi alone is not
-    // enough: a title tagged isHindiDubbed must also open in Hindi mode.
-    _isHindiAudio = widget.initialHindiAudio ||
-        widget.movie.isHindi ||
-        widget.movie.isHindiDubbed ||
-        widget.movie.id == 71446;
+    // Money Heist (71446) defaults to Hindi dub (with English toggle). Bollywood is native Hindi.
+    // All other series & movies (Game of Thrones, etc.) strictly default to English!
+    if (_currentMovie.id == 71446) {
+      _isHindiAudio = true;
+    } else if (_currentMovie.originalLanguage == 'hi') {
+      _isHindiAudio = true;
+    } else {
+      _isHindiAudio = false;
+    }
+    FirebaseService().logMovieView(
+      title: widget.movie.title,
+      id: widget.movie.id.toString(),
+      category: widget.movie.mediaType,
+    );
     _fetchDetails();
   }
 
@@ -52,8 +61,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       if (seasons.isNotEmpty && mounted) {
         setState(() {
           _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
-          if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+          if (_currentMovie.id == 71446 || _currentMovie.originalLanguage == 'hi') {
             _isHindiAudio = true;
+          } else {
+            _isHindiAudio = false;
           }
           _seasons = seasons;
           _selectedSeasonNumber = seasons.first.seasonNumber;
@@ -74,8 +85,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     if (full != null && titleMatch && mounted) {
       setState(() {
         _currentMovie = full;
-        if (full.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+        if (full.id == 71446 || full.originalLanguage == 'hi') {
           _isHindiAudio = true;
+        } else {
+          _isHindiAudio = false;
         }
       });
       return;
@@ -87,8 +100,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     if (fallbackSeasons.isNotEmpty && mounted) {
       setState(() {
         _currentMovie = (tvData['movie'] as Movie).copyWith(mediaType: 'tv');
-        if (_currentMovie.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+        if (_currentMovie.id == 71446 || _currentMovie.originalLanguage == 'hi') {
           _isHindiAudio = true;
+        } else {
+          _isHindiAudio = false;
         }
         _seasons = fallbackSeasons;
         _selectedSeasonNumber = fallbackSeasons.first.seasonNumber;
@@ -97,8 +112,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     } else if (full != null && mounted) {
       setState(() {
         _currentMovie = full;
-        if (full.isHindi || widget.initialHindiAudio || widget.movie.isHindiDubbed) {
+        if (full.id == 71446 || full.originalLanguage == 'hi') {
           _isHindiAudio = true;
+        } else {
+          _isHindiAudio = false;
         }
       });
     }
@@ -120,12 +137,28 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     final sNum = season ?? 1;
     final epNum = episode ?? 1;
 
-    // Show instant SnackBar while resolving Fast Streaming Mirrors
+    // Show instant high-contrast SnackBar while resolving Fast Streaming Mirrors
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('⚡ Connecting to Fast Streaming Mirrors...'),
-        duration: Duration(seconds: 1),
-        backgroundColor: Color(0xFF1E1E1E),
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xF0131720),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
+        ),
+        margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+        content: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bolt_rounded, color: Colors.amber, size: 20),
+            SizedBox(width: 8),
+            Text(
+              'Connecting to Fast Streaming Mirrors...',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
       ),
     );
 
@@ -138,9 +171,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       } catch (_) {}
     }
 
-    // Resolve MovieBox 100% Real Hindi Dubbed Stream first (Clean MP4 with zero warning clip)
+    // Resolve MovieBox 100% Real Hindi Dubbed Stream ONLY for Money Heist in Hindi mode or Bollywood
     String? movieBoxUrl;
-    if (_isHindiAudio || _currentMovie.isHindi || _currentMovie.isHindiDubbed || _currentMovie.id == 71446) {
+    if (_isHindiAudio && (_currentMovie.id == 71446 || _currentMovie.isHindi)) {
       try {
         movieBoxUrl = await MovieBoxService.getHindiStream(
           tmdbId: _currentMovie.id,
@@ -151,16 +184,18 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       } catch (_) {}
     }
 
-    // Resolve NetMirror HLS Stream
+    // Resolve NetMirror HLS Stream ONLY for Money Heist in Hindi mode or Bollywood
     String? netmirrorUrl;
-    try {
-      netmirrorUrl = await NetMirrorService.resolveStream(
-        _currentMovie.title,
-        isTv: isTv,
-        season: sNum,
-        episode: epNum,
-      ).timeout(const Duration(seconds: 15), onTimeout: () => null);
-    } catch (_) {}
+    if (_isHindiAudio && (_currentMovie.id == 71446 || _currentMovie.isHindi)) {
+      try {
+        netmirrorUrl = await NetMirrorService.resolveStream(
+          _currentMovie.title,
+          isTv: isTv,
+          season: sNum,
+          episode: epNum,
+        ).timeout(const Duration(seconds: 15), onTimeout: () => null);
+      } catch (_) {}
+    }
 
     final servers = ApiService.generateServers(
       _currentMovie.id,
@@ -170,6 +205,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       isHindiAudio: _isHindiAudio,
       netMirrorStreamUrl: netmirrorUrl,
       movieBoxStreamUrl: movieBoxUrl,
+      originalLanguage: _currentMovie.originalLanguage,
     );
 
     if (mounted) {
@@ -353,90 +389,184 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Audio Track / Language Selector
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF131720),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF202634)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.multitrack_audio_rounded, color: Color(0xFFE50914), size: 18),
-                              SizedBox(width: 8),
-                              Text(
-                                'Audio Track Preference:',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
+                    // Audio Track / Language Selector (Conditional)
+                    if (_currentMovie.originalLanguage == 'ur')
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131720),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF202634)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.language_rounded, color: Color(0xFF00E676), size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Language: ',
+                              style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 13),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00E676).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFF00E676)),
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(() => _isHindiAudio = false),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 9),
-                                    decoration: BoxDecoration(
-                                      color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF1B202B),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                              child: const Text(
+                                '🇵🇰 Urdu (Original Audio)',
+                                style: TextStyle(color: Color(0xFF00E676), fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_currentMovie.id == 71446)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131720),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF202634)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.multitrack_audio_rounded, color: Color(0xFFE50914), size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Audio Track Preference:',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _isHindiAudio = false),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 9),
+                                      decoration: BoxDecoration(
+                                        color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF1B202B),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: !_isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                        ),
                                       ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        '🇬🇧 English Audio',
-                                        style: TextStyle(
-                                          color: !_isHindiAudio ? Colors.white : const Color(0xFF9EA3AE),
-                                          fontSize: 12,
-                                          fontWeight: !_isHindiAudio ? FontWeight.bold : FontWeight.w500,
+                                      child: Center(
+                                        child: Text(
+                                          '🇬🇧 English Audio',
+                                          style: TextStyle(
+                                            color: !_isHindiAudio ? Colors.white : const Color(0xFF9EA3AE),
+                                            fontSize: 12,
+                                            fontWeight: !_isHindiAudio ? FontWeight.bold : FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(() => _isHindiAudio = true),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 9),
-                                    decoration: BoxDecoration(
-                                      color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF1B202B),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setState(() => _isHindiAudio = true),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 9),
+                                      decoration: BoxDecoration(
+                                        color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF1B202B),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: _isHindiAudio ? const Color(0xFFE50914) : const Color(0xFF2B3244),
+                                        ),
                                       ),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        _currentMovie.isHindi ? '🇮🇳 Hindi Original' : '🇮🇳 Hindi Dubbed',
-                                        style: TextStyle(
-                                          color: _isHindiAudio ? Colors.white : const Color(0xFF9EA3AE),
-                                          fontSize: 12,
-                                          fontWeight: _isHindiAudio ? FontWeight.bold : FontWeight.w500,
+                                      child: Center(
+                                        child: Text(
+                                          '🇮🇳 Hindi Dubbed',
+                                          style: TextStyle(
+                                            color: _isHindiAudio ? Colors.white : const Color(0xFF9EA3AE),
+                                            fontSize: 12,
+                                            fontWeight: _isHindiAudio ? FontWeight.bold : FontWeight.w500,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_currentMovie.originalLanguage == 'hi')
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131720),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF202634)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.language_rounded, color: Color(0xFFE50914), size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Language: ',
+                              style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 13),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE50914).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE50914)),
                               ),
-                            ],
-                          ),
-                        ],
+                              child: const Text(
+                                '🇮🇳 Hindi (Original Audio)',
+                                style: TextStyle(color: Color(0xFFE50914), fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_currentMovie.isHindi)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131720),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF202634)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.language_rounded, color: Color(0xFFE50914), size: 18),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Language: ',
+                              style: TextStyle(color: Color(0xFF9EA3AE), fontSize: 13),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE50914).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFE50914)),
+                              ),
+                              child: const Text(
+                                '🇮🇳 Hindi (Original Audio)',
+                                style: TextStyle(color: Color(0xFFE50914), fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 18),
 
                     // Primary CTA Buttons: [WATCH NOW] & [DOWNLOAD]
@@ -502,17 +632,50 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                 onPressed: () {
                                   if (isDownloaded) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Saved offline in "My Downloads" tab.'),
-                                        backgroundColor: Color(0xFF131720),
+                                      SnackBar(
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          side: BorderSide(color: const Color(0xFF00E676).withValues(alpha: 0.4), width: 1.0),
+                                        ),
+                                        margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                                        backgroundColor: const Color(0xF0131720),
+                                        content: const Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.check_circle_outline_rounded, color: Color(0xFF00E676), size: 18),
+                                            SizedBox(width: 8),
+                                            Text('Saved offline in "My Downloads" tab.', style: TextStyle(color: Colors.white, fontSize: 13)),
+                                          ],
+                                        ),
+                                        duration: const Duration(seconds: 2),
                                       ),
                                     );
                                   } else {
                                     DownloadService().startDownload(_currentMovie);
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
-                                        content: Text('⬇️ Downloading "${_currentMovie.title}" for offline watching...'),
-                                        backgroundColor: const Color(0xFFE50914),
+                                        behavior: SnackBarBehavior.floating,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          side: BorderSide(color: const Color(0xFFE50914).withValues(alpha: 0.5), width: 1.0),
+                                        ),
+                                        margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                                        backgroundColor: const Color(0xF0131720),
+                                        content: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.file_download_outlined, color: Color(0xFFE50914), size: 18),
+                                            const SizedBox(width: 8),
+                                            Flexible(
+                                              child: Text(
+                                                'Downloading "${_currentMovie.title}" for offline watching...',
+                                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                         duration: const Duration(seconds: 2),
                                       ),
                                     );

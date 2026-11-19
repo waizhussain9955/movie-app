@@ -13,8 +13,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DownloadService().init();
   
-  // Non-blocking Firebase init: never freezes app startup when internet is offline
-  FirebaseService().init().catchError((e) => debugPrint('[Firebase] offline launch notice: $e'));
+  // Await Firebase init with a safe 3-second timeout so it never blocks offline launch
+  try {
+    await FirebaseService().init().timeout(const Duration(seconds: 3));
+  } catch (e) {
+    debugPrint('[Firebase] offline launch notice: $e');
+  }
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -33,12 +37,12 @@ class StreamMaxApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final analytics = FirebaseService().analytics;
+    final analytics = FirebaseService().analytics ?? FirebaseAnalytics.instance;
     return MaterialApp(
       title: 'StreamMax',
       debugShowCheckedModeBanner: false,
       navigatorObservers: [
-        if (analytics != null) FirebaseAnalyticsObserver(analytics: analytics),
+        FirebaseAnalyticsObserver(analytics: analytics),
       ],
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -77,8 +81,23 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
   DateTime? _lastBackPressTime;
 
+  static const List<String> _tabNames = [
+    'HomeScreen',
+    'SearchScreen',
+    'DownloadsScreen',
+    'ProfileScreen',
+  ];
+
+  void _onTabChanged(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    if (index >= 0 && index < _tabNames.length) {
+      FirebaseService().logScreenView(_tabNames[index]);
+    }
+  }
+
   void setIndex(int index) {
-    if (mounted) setState(() => _currentIndex = index);
+    _onTabChanged(index);
   }
 
   @override
@@ -181,7 +200,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   unselectedFontSize: 11,
                   selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, height: 1.4),
                   unselectedLabelStyle: const TextStyle(height: 1.4),
-                  onTap: (index) => setState(() => _currentIndex = index),
+                  onTap: _onTabChanged,
                   items: const [
                     BottomNavigationBarItem(
                       icon: Padding(

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -50,8 +51,44 @@ class FirebaseService {
     try {
       _analytics = FirebaseAnalytics.instance;
       await _analytics?.setAnalyticsCollectionEnabled(true);
+
+      // Persistent Device User ID in SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      String? persistentUserId = prefs.getString('sm_analytics_user_id');
+      bool isFirstInstall = false;
+      if (persistentUserId == null || persistentUserId.isEmpty) {
+        final rand = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
+        persistentUserId = 'sm_usr_$rand';
+        await prefs.setString('sm_analytics_user_id', persistentUserId);
+        isFirstInstall = true;
+      }
+
+      // Bind persistent User ID to Firebase Analytics
+      await _analytics?.setUserId(id: persistentUserId);
+
+      // Set global User Properties
+      await _analytics?.setUserProperty(name: 'app_version', value: '1.0.4');
+      await _analytics?.setUserProperty(name: 'version_code', value: '5');
+      await _analytics?.setUserProperty(name: 'install_source', value: 'website_apk');
+
+      // Set Default Event Parameters across all logged events
+      await _analytics?.setDefaultEventParameters({
+        'app_version': '1.0.4',
+        'version_code': 5,
+        'user_id': persistentUserId,
+      });
+
+      // Log AppOpen and explicit app session start event
       await _analytics?.logAppOpen();
-      debugPrint('[Analytics] Firebase Analytics active & AppOpen logged');
+      await _analytics?.logEvent(
+        name: 'app_session_start',
+        parameters: {
+          'is_first_install': isFirstInstall ? 1 : 0,
+          'launch_time': DateTime.now().toIso8601String(),
+        },
+      );
+
+      debugPrint('[Analytics] Firebase Analytics active (User ID: $persistentUserId, firstInstall: $isFirstInstall)');
     } catch (e) {
       debugPrint('[Analytics] Setup notice: $e');
     }
